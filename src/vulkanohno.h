@@ -1,6 +1,7 @@
 #pragma once
 #include <vulkan/Vulkan.h>
 #include <vector>
+#include "Camera.h"
 
 class VulkanOhNo
 {
@@ -8,7 +9,8 @@ public:
 	VulkanOhNo();
 	~VulkanOhNo();
 
-
+	Camera cam;
+	bool bQuitRequested;
 
 	int init();
 

@@ -6,7 +6,11 @@ find_package(Vulkan REQUIRED)
 
 
 include_directories("src")
-add_executable(vulkan-adventures src/main.cpp "src/vulkanohno.cpp")
+add_executable(vulkan-adventures 
+    src/main.cpp 
+    src/Camera.cpp 
+    src/vulkanohno.cpp
+)
 
 
 target_link_libraries(vulkan-adventures Vulkan::Vulkan)

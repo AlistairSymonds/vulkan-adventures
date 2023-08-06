@@ -11,6 +11,7 @@
 
 VulkanOhNo::VulkanOhNo()
 {
+    bQuitRequested = false;
 }
 
 VulkanOhNo::~VulkanOhNo()
@@ -44,23 +45,7 @@ int VulkanOhNo::init()
 }
 
 int VulkanOhNo::run() {
-    {
-        SDL_Event e;
-        bool bQuit = false;
-
-        //main loop
-        while (!bQuit)
-        {
-            //Handle events on queue
-            while (SDL_PollEvent(&e) != 0)
-            {
-                //close the window when user clicks the X button or alt-f4s
-                if (e.type == SDL_QUIT) bQuit = true;
-            }
-
-            draw();
-        }
-    }
+    draw();
     return 0;
 }
 
