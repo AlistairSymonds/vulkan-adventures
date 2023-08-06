@@ -1,6 +1,11 @@
+#include <iostream>
+
 #include "VkBootstrap.h"
 
+
+
 bool init_vulkan() {
+
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name("Vulkan Adventures")
         .request_validation_layers()
@@ -13,8 +18,8 @@ bool init_vulkan() {
     vkb::Instance vkb_inst = inst_ret.value();
 
     vkb::PhysicalDeviceSelector selector{ vkb_inst };
-    auto phys_ret = selector.set_surface(/* from user created window*/)
-        .set_minimum_version(1, 1) // require a vulkan 1.1 capable device
+    auto phys_ret = selector //.set_surface(/* from user created window*/)
+        .set_minimum_version(1, 3) // require a vulkan 1.1 capable device
         .require_dedicated_transfer_queue()
         .select();
     if (!phys_ret) {
@@ -45,7 +50,7 @@ bool init_vulkan() {
     return true;
 }
 
-int main{
+int main() {
     init_vulkan();
     return 0;
 }
