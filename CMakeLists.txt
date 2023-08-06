@@ -10,6 +10,7 @@ add_executable(vulkan-adventures
     src/main.cpp 
     src/Camera.cpp 
     src/vulkanohno.cpp
+    src/vk_initializers.cpp
 )
 
 
@@ -26,6 +27,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(fetch_vk_bootstrap)
 target_link_libraries(vulkan-adventures vk-bootstrap::vk-bootstrap)
+
+FetchContent_Declare(
+    fetch_vma
+    GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
+    GIT_TAG        v3.0.1
+    GIT_SHALLOW     TRUE
+    GIT_PROGRESS    TRUE
+)
+FetchContent_MakeAvailable(fetch_vma)
+target_link_libraries(vulkan-adventures VulkanMemoryAllocator)
 
 FetchContent_Declare(
     fetch_libsdl

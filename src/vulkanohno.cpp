@@ -9,6 +9,20 @@
 #include "VkBootstrap.h"
 #include "vulkanohno.h"
 
+
+//we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
+using namespace std;
+#define VK_CHECK(x)                                                 \
+	do                                                              \
+	{                                                               \
+		VkResult err = x;                                           \
+		if (err)                                                    \
+		{                                                           \
+			std::cout <<"Detected Vulkan error: " << err << std::endl; \
+			abort();                                                \
+		}                                                           \
+	} while (0)
+
 VulkanOhNo::VulkanOhNo()
 {
     bQuitRequested = false;
@@ -38,7 +52,7 @@ int VulkanOhNo::init()
 
     init_vk();
     init_swapchain();
-    //everything went fine
+    init_commands();
     _isInitialized = true;
 
     return true;
@@ -56,6 +70,7 @@ int VulkanOhNo::draw() {
 void VulkanOhNo::cleanup() {
     if (_isInitialized) {
         SDL_DestroyWindow(_window);
+        vkDestroyCommandPool(device, cmdPool, nullptr);
     }
 }
 
@@ -108,6 +123,7 @@ int VulkanOhNo::init_vk()
         return false;
     }
     gfx_q = graphics_queue_ret.value();
+    gfx_q_index = vkb_device.get_queue_index(vkb::QueueType::graphics).value();
 
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(_chosenGPU, &props);
@@ -133,4 +149,14 @@ int VulkanOhNo::init_swapchain()
 
     _swapchainImageFormat = vkbSwapchain.image_format;
     return 0;
+}
+
+void VulkanOhNo::init_commands()
+{
+    //create a command pool for commands submitted to the graphics queue.
+    VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(gfx_q_index);
+    VK_CHECK(vkCreateCommandPool(device, &commandPoolInfo, nullptr, &cmdPool));
+
+    VkCommandBufferAllocateInfo allocInfo = vkinit::command_buffer_allocate_info(cmdPool);
+    vkAllocateCommandBuffers(device, &allocInfo, &cmdBuffer);
 }

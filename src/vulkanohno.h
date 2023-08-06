@@ -27,20 +27,22 @@ private:
 
 	struct SDL_Window* _window{ nullptr };
 
-	int init_vk();
 	VkDevice device;
 	VkQueue gfx_q;
+	uint32_t gfx_q_index;
 	VkInstance _instance; // Vulkan library handle
 	VkDebugUtilsMessengerEXT _debug_messenger; // Vulkan debug output handle
 	VkPhysicalDevice _chosenGPU; // GPU chosen as the default device
 	VkSurfaceKHR _surface; // Vulkan window surface
-
+	int init_vk();
 
 	VkSwapchainKHR _swapchain; // from other articles
 	VkFormat _swapchainImageFormat; // image format expected by the windowing system
 	std::vector<VkImage> _swapchainImages; //array of images from the swapchain
 	std::vector<VkImageView> _swapchainImageViews; 	//array of image-views from the swapchain
-
-
 	int init_swapchain();
+
+	VkCommandPool cmdPool;
+	VkCommandBuffer cmdBuffer;
+	void init_commands();
 };
