@@ -73,6 +73,8 @@ int VulkanOhNo::draw() {
     VK_CHECK(vkResetFences(device, 1, &renderFence));
     uint32_t swapchainImageIndex;
     VK_CHECK(vkAcquireNextImageKHR(device, swapchain, 1000000000, presentSemaphore, nullptr, &swapchainImageIndex));
+    default_colour_attach_info.imageView = _swapchainImageViews[swapchainImageIndex];
+    default_colour_attach_info.clearValue.color.float32[2] = abs(sin(_frameNumber / 120.f));
 
     //new frame stuff
     VkGraphicsPipelineCreateInfo pci;
@@ -89,9 +91,68 @@ int VulkanOhNo::draw() {
     cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
     VK_CHECK(vkBeginCommandBuffer(cmdBuffer, &cmdBeginInfo));
+
+    const VkImageMemoryBarrier pre_draw_image_memory_barrier{
+    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    .image = _swapchainImages[swapchainImageIndex],
+    .subresourceRange = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    }
+    };
+
+    vkCmdPipelineBarrier(
+        cmdBuffer,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // dstStageMask
+        0,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        1, // imageMemoryBarrierCount
+        &pre_draw_image_memory_barrier // pImageMemoryBarriers
+    );
+
     vkCmdBeginRendering(cmdBuffer, &default_ri);
     //no triangles yet!
     vkCmdEndRendering(cmdBuffer);
+
+    const VkImageMemoryBarrier post_draw_image_memory_barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .image = _swapchainImages[swapchainImageIndex],
+        .subresourceRange = {
+          .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+          .baseMipLevel = 0,
+          .levelCount = 1,
+          .baseArrayLayer = 0,
+          .layerCount = 1
+        }
+    };
+
+    vkCmdPipelineBarrier(
+        cmdBuffer,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // srcStageMask
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
+        0,
+        0,
+        nullptr,
+        0,
+        nullptr,
+        1, // imageMemoryBarrierCount
+        &post_draw_image_memory_barrier // pImageMemoryBarriers
+    );
+
+
     VK_CHECK(vkEndCommandBuffer(cmdBuffer));
 
 
@@ -119,7 +180,21 @@ int VulkanOhNo::draw() {
     VK_CHECK(vkQueueSubmit(gfx_q, 1, &submit, renderFence));
 
 
-    
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.pNext = nullptr;
+
+    presentInfo.pSwapchains = &swapchain;
+    presentInfo.swapchainCount = 1;
+
+    presentInfo.pWaitSemaphores = &renderSemaphore;
+    presentInfo.waitSemaphoreCount = 1;
+
+    presentInfo.pImageIndices = &swapchainImageIndex;
+    VK_CHECK(vkQueuePresentKHR(gfx_q, &presentInfo));
+
+    //increase the number of frames drawn
+    _frameNumber++;
 
     
 }
@@ -230,17 +305,21 @@ void VulkanOhNo::init_dynamic_rendering()
 
     default_colour_attach_info = {};
     default_colour_attach_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    default_colour_attach_info.imageView = _swapchainImageViews[0];
     default_colour_attach_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
     default_colour_attach_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     default_colour_attach_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE; 
-    VkClearValue val;
-    val.color = { 1.0, 0.5, 0.0, 1.0 };
+    
+    val.color.float32[0] = 1.0;
+    val.color.float32[1] = 1.0;
+    val.color.float32[2] = 1.0;
+    val.color.float32[3] = 1.0;
+    val.depthStencil = {};
     default_colour_attach_info.clearValue = val;
 
     default_ri = {};
     default_ri.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     default_ri.colorAttachmentCount = 1;
+    default_ri.layerCount = 1;
     default_ri.pColorAttachments =  &default_colour_attach_info;
     default_ri.renderArea.extent = _windowExtent;
     

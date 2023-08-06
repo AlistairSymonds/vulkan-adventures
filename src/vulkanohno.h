@@ -48,6 +48,7 @@ private:
 
 	VkRenderingInfo default_ri;
 	VkRenderingAttachmentInfo default_colour_attach_info;
+	VkClearValue val;
 	void init_dynamic_rendering();
 
 	VkSemaphore presentSemaphore, renderSemaphore;
