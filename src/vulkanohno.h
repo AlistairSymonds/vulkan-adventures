@@ -36,7 +36,7 @@ private:
 	VkSurfaceKHR _surface; // Vulkan window surface
 	int init_vk();
 
-	VkSwapchainKHR _swapchain; // from other articles
+	VkSwapchainKHR swapchain; // from other articles
 	VkFormat _swapchainImageFormat; // image format expected by the windowing system
 	std::vector<VkImage> _swapchainImages; //array of images from the swapchain
 	std::vector<VkImageView> _swapchainImageViews; 	//array of image-views from the swapchain
@@ -45,4 +45,12 @@ private:
 	VkCommandPool cmdPool;
 	VkCommandBuffer cmdBuffer;
 	void init_commands();
+
+	VkRenderingInfo default_ri;
+	VkRenderingAttachmentInfo default_colour_attach_info;
+	void init_dynamic_rendering();
+
+	VkSemaphore presentSemaphore, renderSemaphore;
+	VkFence renderFence;
+	void init_sync();
 };
