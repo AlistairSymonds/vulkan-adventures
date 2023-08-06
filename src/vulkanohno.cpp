@@ -36,7 +36,7 @@ int VulkanOhNo::init()
     );
 
     init_vk();
-    //init_swapchain();
+    init_swapchain();
     //everything went fine
     _isInitialized = true;
 
@@ -102,8 +102,9 @@ int VulkanOhNo::init_vk()
         std::cerr << "Failed to select Vulkan Physical Device. Error: " << phys_ret.error().message() << "\n";
         return false;
     }
+    _chosenGPU = phys_ret.value();
 
-    vkb::DeviceBuilder device_builder{ phys_ret.value() };
+    vkb::DeviceBuilder device_builder(*phys_ret);
     // automatically propagate needed data from instance & physical device
     auto dev_ret = device_builder.build();
     if (!dev_ret) {
@@ -124,7 +125,7 @@ int VulkanOhNo::init_vk()
     gfx_q = graphics_queue_ret.value();
 
     VkPhysicalDeviceProperties props;
-    vkGetPhysicalDeviceProperties(phys_ret.value(), &props);
+    vkGetPhysicalDeviceProperties(_chosenGPU, &props);
     std::cout << "Vulkan initialised on: " << props.deviceName << std::endl;
 }
 
