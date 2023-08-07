@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <vulkan/vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
 
@@ -9,6 +10,7 @@
 #include <vk_initializers.h>
 #include "VkBootstrap.h"
 #include "vulkanohno.h"
+#include "PipelineBuilder.h"
 
 
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
@@ -56,6 +58,8 @@ int VulkanOhNo::init()
     init_commands();
     init_dynamic_rendering();
     init_sync();
+    load_shaders();
+    init_pipelines();
     _isInitialized = true;
 
     return true;
@@ -92,21 +96,8 @@ int VulkanOhNo::draw() {
 
     VK_CHECK(vkBeginCommandBuffer(cmdBuffer, &cmdBeginInfo));
 
-    const VkImageMemoryBarrier pre_draw_image_memory_barrier{
-    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-    .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-    .image = _swapchainImages[swapchainImageIndex],
-    .subresourceRange = {
-      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-      .baseMipLevel = 0,
-      .levelCount = 1,
-      .baseArrayLayer = 0,
-      .layerCount = 1,
-    }
-    };
 
+    pre_draw_image_memory_barrier.image = _swapchainImages[swapchainImageIndex];
     vkCmdPipelineBarrier(
         cmdBuffer,
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
@@ -121,24 +112,12 @@ int VulkanOhNo::draw() {
     );
 
     vkCmdBeginRendering(cmdBuffer, &default_ri);
-    //no triangles yet!
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipe);
+    vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
     vkCmdEndRendering(cmdBuffer);
 
-    const VkImageMemoryBarrier post_draw_image_memory_barrier{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        .image = _swapchainImages[swapchainImageIndex],
-        .subresourceRange = {
-          .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-          .baseMipLevel = 0,
-          .levelCount = 1,
-          .baseArrayLayer = 0,
-          .layerCount = 1
-        }
-    };
 
+    post_draw_image_memory_barrier.image = _swapchainImages[swapchainImageIndex];
     vkCmdPipelineBarrier(
         cmdBuffer,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // srcStageMask
@@ -154,8 +133,6 @@ int VulkanOhNo::draw() {
 
 
     VK_CHECK(vkEndCommandBuffer(cmdBuffer));
-
-
 
 
     VkSubmitInfo submit = {};
@@ -228,12 +205,17 @@ int VulkanOhNo::init_vk()
     VkPhysicalDeviceVulkan13Features features_13;
     features_13 = {};
     features_13.dynamicRendering = true;
-
+    
     vkb::PhysicalDeviceSelector selector{ vkb_inst };
     auto phys_ret = selector.set_surface(_surface)
         .prefer_gpu_device_type(vkb::PreferredDeviceType::integrated)
         .set_minimum_version(1, 3)
         .set_required_features_13(features_13)
+        .add_required_extension("VK_KHR_pipeline_library")
+        .add_required_extension("VK_KHR_deferred_host_operations")
+        .add_required_extension("VK_KHR_acceleration_structure")
+        .add_required_extension("VK_KHR_ray_tracing_pipeline")
+        .add_required_extension("VK_KHR_ray_query")
         .require_dedicated_transfer_queue()
         .select();
     if (!phys_ret) {
@@ -323,7 +305,35 @@ void VulkanOhNo::init_dynamic_rendering()
     default_ri.pColorAttachments =  &default_colour_attach_info;
     default_ri.renderArea.extent = _windowExtent;
     
+    pre_draw_image_memory_barrier = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    .image = _swapchainImages[0],
+    .subresourceRange = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1,
+    }
+    };
 
+    post_draw_image_memory_barrier = {
+    .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+    .image = _swapchainImages[0],
+    .subresourceRange = {
+      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1
+    }
+    };
 }
 
 void VulkanOhNo::init_sync() {
@@ -341,4 +351,110 @@ void VulkanOhNo::init_sync() {
 
     VK_CHECK(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &presentSemaphore));
     VK_CHECK(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderSemaphore));
+}
+
+bool VulkanOhNo::load_shader_module(std::filesystem::path shader_path, VkShaderModule* outShaderModule)
+{
+    //open the file. With cursor at the end
+    std::ifstream file(shader_path, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) {
+        return false;
+    }
+    //find what the size of the file is by looking up the location of the cursor
+    //because the cursor is at the end, it gives the size directly in bytes
+    size_t fileSize = (size_t)file.tellg();
+
+    //spirv expects the buffer to be on uint32, so make sure to reserve an int vector big enough for the entire file
+    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
+
+    //put file cursor at beginning
+    file.seekg(0);
+
+    //load the entire file into the buffer
+    file.read((char*)buffer.data(), fileSize);
+
+    //now that the file is loaded into the buffer, we can close it
+    file.close();
+
+    VkShaderModuleCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.pNext = nullptr;
+    createInfo.codeSize = buffer.size() * sizeof(uint32_t);
+    createInfo.pCode = buffer.data();
+
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+        return false;
+    }
+    *outShaderModule = shaderModule;
+
+
+    return true;
+}
+
+void VulkanOhNo::load_shaders()
+{
+    
+    if (!load_shader_module("shaders/basic.frag.spv", &triangleFragmentShader))
+    {
+        std::cout << "Error when building the triangle fragment shader module" << std::endl;
+    }
+    else {
+        std::cout << "Triangle fragment shader successfully loaded" << std::endl;
+    }
+
+    if (!load_shader_module("shaders/basic.vert.spv", &triangleVertexShader))
+    {
+        std::cout << "Error when building the triangle vertex shader module" << std::endl;
+
+    }
+    else {
+        std::cout << "Triangle vertex shader successfully loaded" << std::endl;
+    }
+
+}
+
+void VulkanOhNo::init_pipelines()
+{
+    VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+    //use the layout then shove in the tripipe's layout
+    VK_CHECK(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &trianglePipelineLayout));
+
+    PipelineBuilder pb;
+    pb._shaderStages.push_back(
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, triangleVertexShader)
+    );
+
+    pb._shaderStages.push_back(
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangleFragmentShader)
+    );
+
+    pb._vertexInputInfo = vkinit::vertx_input_state_create_info();
+    pb._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+    pb._viewport.x = 0.0f;
+    pb._viewport.y = 0.0f;
+    pb._viewport.width = (float)_windowExtent.width;
+    pb._viewport.height = (float)_windowExtent.height;
+    pb._viewport.minDepth = 0.0f;
+    pb._viewport.maxDepth = 1.0f;
+
+    pb._scissor.offset = { 0, 0 };
+    pb._scissor.extent = _windowExtent;
+
+
+    pb._rasterizer = vkinit::raster_state_create_info();
+    pb._multisampling = vkinit::multisampling_state_create_info();
+    pb._colorBlendAttachment = vkinit::color_blend_attachment_state();
+
+    pb._pipelineLayout = trianglePipelineLayout;
+
+    VkPipelineRenderingCreateInfo pipeline_rendering_create_info{
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
+    .colorAttachmentCount = 1,
+    .pColorAttachmentFormats = &_swapchainImageFormat,
+    };
+
+    trianglePipe = pb.build_pipeline(device, pipeline_rendering_create_info);
 }

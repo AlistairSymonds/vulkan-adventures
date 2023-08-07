@@ -1,7 +1,10 @@
 #pragma once
 #include <vulkan/Vulkan.h>
 #include <vector>
+#include <unordered_set>
+#include <filesystem>
 #include "Camera.h"
+
 
 class VulkanOhNo
 {
@@ -49,9 +52,18 @@ private:
 	VkRenderingInfo default_ri;
 	VkRenderingAttachmentInfo default_colour_attach_info;
 	VkClearValue val;
+	VkImageMemoryBarrier pre_draw_image_memory_barrier, post_draw_image_memory_barrier;
 	void init_dynamic_rendering();
 
 	VkSemaphore presentSemaphore, renderSemaphore;
 	VkFence renderFence;
 	void init_sync();
+
+	bool load_shader_module(std::filesystem::path shader_path, VkShaderModule* outShaderModule);
+	VkShaderModule triangleFragmentShader, triangleVertexShader;
+	void load_shaders();
+
+	VkPipelineLayout trianglePipelineLayout;
+	VkPipeline trianglePipe;
+	void init_pipelines();
 };
