@@ -13,6 +13,9 @@
 #include "PipelineBuilder.h"
 
 
+#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
 using namespace std;
 #define VK_CHECK(x)                                                 \
@@ -58,7 +61,6 @@ int VulkanOhNo::init()
     init_commands();
     init_dynamic_rendering();
     init_sync();
-    load_shaders();
     init_pipelines();
     _isInitialized = true;
 
@@ -178,8 +180,16 @@ int VulkanOhNo::draw() {
 
 void VulkanOhNo::cleanup() {
     if (_isInitialized) {
+        //make sure the GPU has stopped doing its things
+        vkWaitForFences(device, 1, &renderFence, true, 1000000000);
+
+        cleanup_queue.flush();
+
+        vkDestroyDevice(device, nullptr);
+        vkDestroySurfaceKHR(_instance, _surface, nullptr);
+        vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
+        vkDestroyInstance(_instance, nullptr);
         SDL_DestroyWindow(_window);
-        vkDestroyCommandPool(device, cmdPool, nullptr);
     }
 }
 
@@ -245,6 +255,12 @@ int VulkanOhNo::init_vk()
     gfx_q = graphics_queue_ret.value();
     gfx_q_index = vkb_device.get_queue_index(vkb::QueueType::graphics).value();
 
+    VmaAllocatorCreateInfo info = {};
+    info.physicalDevice = _chosenGPU;
+    info.device = device;
+    info.instance = _instance;
+    vmaCreateAllocator(&info, &allocator);
+
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(_chosenGPU, &props);
     std::cout << "Vulkan initialised on: " << props.deviceName << std::endl;
@@ -268,6 +284,17 @@ int VulkanOhNo::init_swapchain()
     _swapchainImageViews = vkbSwapchain.get_image_views().value();
 
     _swapchainImageFormat = vkbSwapchain.image_format;
+
+    for (size_t i = 0; i < _swapchainImages.size(); i++)
+    {
+        cleanup_queue.push_function([=]() {
+            vkDestroyImageView(device, _swapchainImageViews[i], nullptr);
+        });
+    }
+
+    cleanup_queue.push_function([=]() {
+        vkDestroySwapchainKHR(device, swapchain, nullptr);
+    });
     return 0;
 }
 
@@ -280,6 +307,10 @@ void VulkanOhNo::init_commands()
 
     VkCommandBufferAllocateInfo allocInfo = vkinit::command_buffer_allocate_info(cmdPool);
     vkAllocateCommandBuffers(device, &allocInfo, &cmdBuffer);
+
+    cleanup_queue.push_function([=]() {
+        vkDestroyCommandPool(device, cmdPool, nullptr);
+    });
 }
 
 void VulkanOhNo::init_dynamic_rendering()
@@ -342,6 +373,9 @@ void VulkanOhNo::init_sync() {
     fi.pNext = NULL;
     fi.flags = VK_FENCE_CREATE_SIGNALED_BIT;
     VK_CHECK(vkCreateFence(device, &fi, nullptr, &renderFence));
+    cleanup_queue.push_function([=]() {
+        vkDestroyFence(device, renderFence, nullptr);
+    });
 
     //for the semaphores we don't need any flags
     VkSemaphoreCreateInfo semaphoreCreateInfo = {};
@@ -351,6 +385,11 @@ void VulkanOhNo::init_sync() {
 
     VK_CHECK(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &presentSemaphore));
     VK_CHECK(vkCreateSemaphore(device, &semaphoreCreateInfo, nullptr, &renderSemaphore));
+
+    cleanup_queue.push_function([=](){
+        vkDestroySemaphore(device, presentSemaphore, nullptr);
+        vkDestroySemaphore(device, renderSemaphore, nullptr);
+    });
 }
 
 bool VulkanOhNo::load_shader_module(std::filesystem::path shader_path, VkShaderModule* outShaderModule)
@@ -393,41 +432,39 @@ bool VulkanOhNo::load_shader_module(std::filesystem::path shader_path, VkShaderM
     return true;
 }
 
-void VulkanOhNo::load_shaders()
-{
-    
-    if (!load_shader_module("shaders/basic.frag.spv", &triangleFragmentShader))
-    {
-        std::cout << "Error when building the triangle fragment shader module" << std::endl;
-    }
-    else {
-        std::cout << "Triangle fragment shader successfully loaded" << std::endl;
-    }
+void VulkanOhNo::load_all_shader_modules() {
+    const std::filesystem::path shader_dir("shaders");
 
-    if (!load_shader_module("shaders/basic.vert.spv", &triangleVertexShader))
-    {
-        std::cout << "Error when building the triangle vertex shader module" << std::endl;
+    std::cout << "Loading .spv from:" << std::endl;
+    for (std::filesystem::path fp : std::filesystem::directory_iterator(shader_dir)) {
+        if (fp.extension() == ".spv") {
 
+            std::cout << fp << std::endl;
+            VkShaderModule mod;
+            load_shader_module(fp, &mod);
+            std::string shader_name;
+            shader_name = fp.filename().replace_extension().generic_string();
+            shader_modules[shader_name] = mod;
+        }
     }
-    else {
-        std::cout << "Triangle vertex shader successfully loaded" << std::endl;
-    }
-
 }
+
 
 void VulkanOhNo::init_pipelines()
 {
+
+    load_all_shader_modules();
     VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
     //use the layout then shove in the tripipe's layout
     VK_CHECK(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &trianglePipelineLayout));
 
     PipelineBuilder pb;
     pb._shaderStages.push_back(
-        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, triangleVertexShader)
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, shader_modules["basic.vert"])
     );
 
     pb._shaderStages.push_back(
-        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, triangleFragmentShader)
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, shader_modules["basic.frag"])
     );
 
     pb._vertexInputInfo = vkinit::vertx_input_state_create_info();
@@ -457,4 +494,17 @@ void VulkanOhNo::init_pipelines()
     };
 
     trianglePipe = pb.build_pipeline(device, pipeline_rendering_create_info);
+
+    cleanup_queue.push_function([=]() {
+        vkDestroyPipeline(device, trianglePipe, nullptr);
+        vkDestroyPipelineLayout(device, trianglePipelineLayout, nullptr);
+    });
+
+    for (auto sm : shader_modules) {
+        vkDestroyShaderModule(device, sm.second, nullptr);
+    }
+}
+
+void VulkanOhNo::upload_mesh(Mesh& mesh) {
+
 }

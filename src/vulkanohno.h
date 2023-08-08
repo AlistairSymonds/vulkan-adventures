@@ -1,9 +1,14 @@
 #pragma once
 #include <vulkan/Vulkan.h>
 #include <vector>
+#include <deque>
+#include <functional>
 #include <unordered_set>
 #include <filesystem>
+#include <vk_mem_alloc.h>
 #include "Camera.h"
+#include "Mesh.h"
+
 
 
 class VulkanOhNo
@@ -60,10 +65,31 @@ private:
 	void init_sync();
 
 	bool load_shader_module(std::filesystem::path shader_path, VkShaderModule* outShaderModule);
-	VkShaderModule triangleFragmentShader, triangleVertexShader;
-	void load_shaders();
+	void load_all_shader_modules();
+	std::unordered_map<std::string, VkShaderModule> shader_modules;
 
 	VkPipelineLayout trianglePipelineLayout;
 	VkPipeline trianglePipe;
 	void init_pipelines();
+
+	VmaAllocator allocator;
+
+	void upload_mesh(Mesh& mesh);
+
+	struct DeletionQueue {
+		std::deque<std::function<void()>> deletors;
+		void push_function(std::function<void()>&& function) {
+			deletors.push_back(function);
+		}
+
+		void flush() {
+			for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+				(*it)(); //deference function, then call it
+			}
+
+			deletors.clear();
+		}
+	};
+
+	DeletionQueue cleanup_queue;
 };

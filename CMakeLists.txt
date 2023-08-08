@@ -11,7 +11,7 @@ add_executable(vulkan-adventures
     src/Camera.cpp 
     src/vulkanohno.cpp
     src/vk_initializers.cpp
-    src/PipelineBuilder.cpp)
+    src/PipelineBuilder.cpp "src/Mesh.cpp")
 
 
 target_link_libraries(vulkan-adventures Vulkan::Vulkan)
