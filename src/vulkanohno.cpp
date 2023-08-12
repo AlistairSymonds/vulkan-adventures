@@ -88,10 +88,9 @@ int VulkanOhNo::run() {
 
 int VulkanOhNo::draw() {
     //before we wait for the previous frame to finish, calculate everything we need to do locally on the CPU
-    glm::mat4 view = glm::translate(glm::mat4(1.f), cam.pos);
+    glm::mat4 view = cam.GetViewMatrix();
     //camera projection
-    glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
-    projection[1][1] *= -1;
+    glm::mat4 projection = cam.GetProjectionMatrix();
     //model rotation
     glm::mat4 model = glm::rotate(glm::mat4{ 1.0f }, glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0));
 
@@ -231,6 +230,16 @@ void VulkanOhNo::cleanup() {
     }
 }
 
+VkOhNoWindow VulkanOhNo::getWindw()
+{
+    
+    VkOhNoWindow w;
+    w.h = _windowExtent.height;
+    w.w = _windowExtent.width;
+    w.window = _window;
+    return w;
+}
+
 int VulkanOhNo::init_vk()
 {
 
@@ -259,11 +268,14 @@ int VulkanOhNo::init_vk()
         .prefer_gpu_device_type(vkb::PreferredDeviceType::integrated)
         .set_minimum_version(1, 3)
         .set_required_features_13(features_13)
+        /*
+        Render doc nolikey :(
         .add_required_extension("VK_KHR_pipeline_library")
         .add_required_extension("VK_KHR_deferred_host_operations")
         .add_required_extension("VK_KHR_acceleration_structure")
         .add_required_extension("VK_KHR_ray_tracing_pipeline")
         .add_required_extension("VK_KHR_ray_query")
+        */
         .require_dedicated_transfer_queue()
         .select();
     if (!phys_ret) {
@@ -473,7 +485,7 @@ bool VulkanOhNo::load_shader_module(std::filesystem::path shader_path, VkShaderM
 void VulkanOhNo::load_all_shader_modules() {
     const std::filesystem::path shader_dir("shaders");
 
-    std::cout << "Loading .spv from:" << std::endl;
+    std::cout << "Loading .spv from:" << std::filesystem::absolute(shader_dir) << std::endl;
     for (std::filesystem::path fp : std::filesystem::directory_iterator(shader_dir)) {
         if (fp.extension() == ".spv") {
 
@@ -484,6 +496,10 @@ void VulkanOhNo::load_all_shader_modules() {
             shader_name = fp.filename().replace_extension().generic_string();
             shader_modules[shader_name] = mod;
         }
+    }
+    if (shader_modules.size() == 0)
+    {
+        assert("Didn't load any shaders");
     }
 }
 
@@ -532,7 +548,6 @@ void VulkanOhNo::init_pipelines()
     };
 
     auto trianglePipe = pb.build_pipeline(device, pipeline_rendering_create_info);
-    vkPipelines.push_back({ "Static tri", trianglePipe });
 
     //Now build mesh pipeline
     VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
@@ -560,6 +575,9 @@ void VulkanOhNo::init_pipelines()
     auto mvpMeshPipe = pb.build_pipeline(device, pipeline_rendering_create_info);
     vkPipelines.push_back({ "Mesh", mvpMeshPipe });
 
+
+
+    vkPipelines.push_back({ "Static tri", trianglePipe });
     //After all pipelines have been created, do the cleanup
     for (auto p : vkPipelines) {
         cleanup_queue.push_function([=]() {

@@ -10,6 +10,12 @@
 #include "Mesh.h"
 
 
+struct VkOhNoWindow
+{
+	int w;
+	int h;
+	SDL_Window* window;
+};
 
 class VulkanOhNo
 {
@@ -28,12 +34,12 @@ public:
 	int draw();
 	void cleanup();
 
+	VkOhNoWindow getWindw();
 private:
 	bool _isInitialized{ false };
 	int _frameNumber{ 0 };
 
 	VkExtent2D _windowExtent{ 1700 , 900 };
-
 	struct SDL_Window* _window{ nullptr };
 
 	VkDevice device;

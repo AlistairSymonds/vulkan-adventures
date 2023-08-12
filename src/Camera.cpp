@@ -17,14 +17,17 @@ Camera::Camera() {
 
 void Camera::Rotate(float pitch, float yaw)
 {
-
+    rot.x += pitch;
+    rot.y += yaw;
 }
 
 
 glm::mat4 Camera::GetViewMatrix()
 {   
     glm::mat4 viewMatrix = glm::yawPitchRoll(rot.x, rot.y, rot.z);
-    viewMatrix = glm::translate(viewMatrix, -pos);
+    glm::vec3 posflip = pos;
+    posflip.y *= -1.0;
+    viewMatrix = glm::translate(viewMatrix, posflip);
     return viewMatrix;
 }
 
