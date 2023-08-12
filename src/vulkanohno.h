@@ -70,6 +70,7 @@ private:
 	std::unordered_map<std::string, VkShaderModule> shader_modules;
 
 	VkPipelineLayout trianglePipelineLayout;
+	VkPipelineLayout meshPipelineLayout;
 	std::vector<std::pair<std::string, VkPipeline>> vkPipelines;
 	uint32_t current_pipe_idx = 0;
 	void init_pipelines();
@@ -79,6 +80,11 @@ private:
 	void upload_mesh(Mesh& mesh);
 	std::deque<Mesh> meshes;
 	void load_meshes();
+
+	struct MeshPushConstants{
+		glm::vec4 data;
+		glm::mat4 render_matrix;
+	};
 
 	struct DeletionQueue {
 		std::deque<std::function<void()>> deletors;

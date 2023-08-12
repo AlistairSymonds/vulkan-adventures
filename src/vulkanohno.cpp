@@ -87,6 +87,22 @@ int VulkanOhNo::run() {
 }
 
 int VulkanOhNo::draw() {
+    //before we wait for the previous frame to finish, calculate everything we need to do locally on the CPU
+    glm::mat4 view = glm::translate(glm::mat4(1.f), cam.pos);
+    //camera projection
+    glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+    projection[1][1] *= -1;
+    //model rotation
+    glm::mat4 model = glm::rotate(glm::mat4{ 1.0f }, glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0));
+
+    //calculate final mesh matrix
+    glm::mat4 mesh_matrix = projection * view * model;
+
+    MeshPushConstants constants;
+    constants.render_matrix = mesh_matrix;
+
+
+
     //Previous frame waiting and finishing
     //wait until the GPU has finished rendering the last frame. Timeout of 1 second
     VK_CHECK(vkWaitForFences(device, 1, &renderFence, true, 1000000000));
@@ -129,6 +145,11 @@ int VulkanOhNo::draw() {
 
     vkCmdBeginRendering(cmdBuffer, &default_ri);
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipelines[current_pipe_idx].second);
+    if (vkPipelines[current_pipe_idx].first == "Mesh")
+    {
+        vkCmdPushConstants(cmdBuffer, meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+    }
+
     VkDeviceSize offset = 0;
     vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &meshes[0].vertexBuffer.buf, &offset);
 
@@ -514,6 +535,17 @@ void VulkanOhNo::init_pipelines()
     vkPipelines.push_back({ "Static tri", trianglePipe });
 
     //Now build mesh pipeline
+    VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
+    VkPushConstantRange push_constant;
+    push_constant.size = sizeof(MeshPushConstants);
+    push_constant.offset = 0;
+    push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    mesh_pipeline_layout_info.pPushConstantRanges = &push_constant;
+    mesh_pipeline_layout_info.pushConstantRangeCount = 1;
+    
+    VK_CHECK(vkCreatePipelineLayout(device, &mesh_pipeline_layout_info, nullptr, &meshPipelineLayout));
+    pb._pipelineLayout = meshPipelineLayout;
+
     auto vertexDesc = Vertex::get_vertex_description();
     pb._vertexInputInfo.pVertexAttributeDescriptions = vertexDesc.attributes.data();
     pb._vertexInputInfo.vertexAttributeDescriptionCount = vertexDesc.attributes.size();
@@ -524,6 +556,7 @@ void VulkanOhNo::init_pipelines()
     pb._shaderStages.clear();
     pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, shader_modules["mvp_mesh.vert"]));
     pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, shader_modules["basic.frag"]));
+    
     auto mvpMeshPipe = pb.build_pipeline(device, pipeline_rendering_create_info);
     vkPipelines.push_back({ "Mesh", mvpMeshPipe });
 
@@ -536,6 +569,7 @@ void VulkanOhNo::init_pipelines()
 
     cleanup_queue.push_function([=]() {
         vkDestroyPipelineLayout(device, trianglePipelineLayout, nullptr);
+        vkDestroyPipelineLayout(device, meshPipelineLayout, nullptr);
     });
    
 
@@ -575,12 +609,12 @@ void VulkanOhNo::load_meshes()
     tri.vertices.resize(3);
 
     //vertex positions
-    tri.vertices[0].position = { 1.f, 1.f, 0.0f };
+    tri.vertices[0].position = { 1.f, 1.f, 1.0f };
     tri.vertices[1].position = { -1.f, 1.f, 0.0f };
     tri.vertices[2].position = { 0.f,-1.f, 0.0f };
 
     //vertex colors, all green
-    tri.vertices[0].color = { 0.f, 1.f, 0.0f }; //pure green
+    tri.vertices[0].color = { 1.f, 1.f, 0.0f }; 
     tri.vertices[1].color = { 0.f, 1.f, 0.0f }; //pure green
     tri.vertices[2].color = { 0.f, 1.f, 0.0f }; //pure green
 

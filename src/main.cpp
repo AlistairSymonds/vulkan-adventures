@@ -12,7 +12,7 @@ int main() {
 
     vkohno.init();
 
-    
+    vkohno.cam.pos.z = -3;
     SDL_Event e;
     bool bQuit = false;
 
@@ -25,20 +25,26 @@ int main() {
             //close the window when user clicks the X button or alt-f4s
             if (e.type == SDL_QUIT) bQuit = true;
             
-            float move_speed = 1.0f;
+            float move_speed = 0.01f;
             if (e.type == SDL_KEYDOWN) {
                 switch (e.key.keysym.sym) {
                 case SDLK_w:
-                    vkohno.cam.pos.x += 1 * move_speed;
+                    vkohno.cam.pos.z += 1 * move_speed;
                     break;
                 case SDLK_a:
-                    vkohno.cam.pos.y += -1 * move_speed;
+                    vkohno.cam.pos.x += 1 * move_speed;
                     break;
                 case SDLK_s:
-                    vkohno.cam.pos.x += -1 * move_speed;
+                    vkohno.cam.pos.z += -1 * move_speed;
                     break;
                 case SDLK_d:
+                    vkohno.cam.pos.x += -1 * move_speed;
+                    break;
+                case SDLK_SPACE:
                     vkohno.cam.pos.y += 1 * move_speed;
+                    break;
+                case SDLK_LCTRL:
+                    vkohno.cam.pos.y += -1 * move_speed;
                     break;
 
                 case SDLK_UP:

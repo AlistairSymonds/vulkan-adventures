@@ -2,6 +2,7 @@
 #include <vk_types.h>
 #include <vector>
 #include <glm/vec3.hpp>
+#include <glm/matrix.hpp>
 
 struct VertexInputDescription {
 	std::vector<VkVertexInputBindingDescription> bindings;
@@ -21,6 +22,7 @@ struct Vertex
 
 
 struct Mesh {
+	glm::mat4 mvpMatrix;
 	std::vector<Vertex> vertices;
 	AllocatedBuffer vertexBuffer;
 };
