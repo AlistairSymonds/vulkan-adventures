@@ -40,6 +40,10 @@ int main() {
                 case SDLK_d:
                     vkohno.cam.pos.y += 1 * move_speed;
                     break;
+
+                case SDLK_UP:
+                    vkohno.IncrementPipeline();
+                    break;
                 default:
                     break;
                 }

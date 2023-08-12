@@ -39,6 +39,19 @@ VulkanOhNo::~VulkanOhNo()
 
 }
 
+void VulkanOhNo::IncrementPipeline()
+{
+    if (current_pipe_idx >= vkPipelines.size()-1)
+    {
+        current_pipe_idx = 0;
+    }
+    else {
+        current_pipe_idx++;
+    }
+
+    std::cout << "Select vkPipeline: " << vkPipelines[current_pipe_idx].first << std::endl;
+}
+
 int VulkanOhNo::init()
 {   
 
@@ -62,6 +75,7 @@ int VulkanOhNo::init()
     init_dynamic_rendering();
     init_sync();
     init_pipelines();
+    load_meshes();
     _isInitialized = true;
 
     return true;
@@ -114,8 +128,11 @@ int VulkanOhNo::draw() {
     );
 
     vkCmdBeginRendering(cmdBuffer, &default_ri);
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipe);
-    vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipelines[current_pipe_idx].second);
+    VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &meshes[0].vertexBuffer.buf, &offset);
+
+    vkCmdDraw(cmdBuffer, meshes[0].vertices.size(), 1, 0, 0);
     vkCmdEndRendering(cmdBuffer);
 
 
@@ -493,18 +510,84 @@ void VulkanOhNo::init_pipelines()
     .pColorAttachmentFormats = &_swapchainImageFormat,
     };
 
-    trianglePipe = pb.build_pipeline(device, pipeline_rendering_create_info);
+    auto trianglePipe = pb.build_pipeline(device, pipeline_rendering_create_info);
+    vkPipelines.push_back({ "Static tri", trianglePipe });
+
+    //Now build mesh pipeline
+    auto vertexDesc = Vertex::get_vertex_description();
+    pb._vertexInputInfo.pVertexAttributeDescriptions = vertexDesc.attributes.data();
+    pb._vertexInputInfo.vertexAttributeDescriptionCount = vertexDesc.attributes.size();
+
+
+    pb._vertexInputInfo.pVertexBindingDescriptions = vertexDesc.bindings.data();
+    pb._vertexInputInfo.vertexBindingDescriptionCount = vertexDesc.bindings.size();
+    pb._shaderStages.clear();
+    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, shader_modules["mvp_mesh.vert"]));
+    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, shader_modules["basic.frag"]));
+    auto mvpMeshPipe = pb.build_pipeline(device, pipeline_rendering_create_info);
+    vkPipelines.push_back({ "Mesh", mvpMeshPipe });
+
+    //After all pipelines have been created, do the cleanup
+    for (auto p : vkPipelines) {
+        cleanup_queue.push_function([=]() {
+            vkDestroyPipeline(device, p.second, nullptr);
+        });
+    }
 
     cleanup_queue.push_function([=]() {
-        vkDestroyPipeline(device, trianglePipe, nullptr);
         vkDestroyPipelineLayout(device, trianglePipelineLayout, nullptr);
     });
+   
 
     for (auto sm : shader_modules) {
         vkDestroyShaderModule(device, sm.second, nullptr);
     }
 }
 
-void VulkanOhNo::upload_mesh(Mesh& mesh) {
+void VulkanOhNo::upload_mesh(Mesh& m) {
+    VkBufferCreateInfo ci = {};
+    ci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    ci.size = m.vertices.size() * sizeof(Vertex);
+    ci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 
+    VmaAllocationCreateInfo vmalloc_ci = {};
+    vmalloc_ci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+    VK_CHECK(vmaCreateBuffer(allocator, &ci, &vmalloc_ci, &m.vertexBuffer.buf,
+        &m.vertexBuffer.allocation,
+        nullptr));
+
+    cleanup_queue.push_function([=]() {
+        vmaDestroyBuffer(allocator, m.vertexBuffer.buf, m.vertexBuffer.allocation);
+        });
+
+    void* data;
+    vmaMapMemory(allocator, m.vertexBuffer.allocation, &data);
+
+    memcpy(data, m.vertices.data(), m.vertices.size() * sizeof(Vertex));
+
+    vmaUnmapMemory(allocator, m.vertexBuffer.allocation);
+}
+
+void VulkanOhNo::load_meshes()
+{
+    Mesh tri;
+    tri.vertices.resize(3);
+
+    //vertex positions
+    tri.vertices[0].position = { 1.f, 1.f, 0.0f };
+    tri.vertices[1].position = { -1.f, 1.f, 0.0f };
+    tri.vertices[2].position = { 0.f,-1.f, 0.0f };
+
+    //vertex colors, all green
+    tri.vertices[0].color = { 0.f, 1.f, 0.0f }; //pure green
+    tri.vertices[1].color = { 0.f, 1.f, 0.0f }; //pure green
+    tri.vertices[2].color = { 0.f, 1.f, 0.0f }; //pure green
+
+    meshes.push_back(tri);
+
+    for (auto &m : meshes)
+    {
+        upload_mesh(m);
+    }
 }

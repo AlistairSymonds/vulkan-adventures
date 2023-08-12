@@ -11,7 +11,8 @@ add_executable(vulkan-adventures
     src/Camera.cpp 
     src/vulkanohno.cpp
     src/vk_initializers.cpp
-    src/PipelineBuilder.cpp "src/Mesh.cpp")
+    src/PipelineBuilder.cpp 
+    src/Mesh.cpp)
 
 
 target_link_libraries(vulkan-adventures Vulkan::Vulkan)
@@ -49,14 +50,23 @@ FetchContent_MakeAvailable(fetch_libsdl)
 target_link_libraries(vulkan-adventures SDL2::SDL2)
 
 FetchContent_Declare(
+    fetch_tinygltf
+    GIT_REPOSITORY https://github.com/syoyo/tinygltf/
+    GIT_TAG        v2.8.14
+    GIT_SHALLOW     TRUE
+    GIT_PROGRESS    TRUE
+)
+FetchContent_MakeAvailable(fetch_tinygltf)
+target_link_libraries(vulkan-adventures tinygltf)
+
+
+FetchContent_Declare(
     glm
     GIT_REPOSITORY https://github.com/g-truc/glm
     GIT_TAG        master
     GIT_SHALLOW    TRUE
     GIT_PROGRESS   TRUE
 )
-
-message("Fetching glm")
 FetchContent_MakeAvailable(glm)
 target_compile_definitions(glm INTERFACE GLM_FORCE_SILENT_WARNINGS)
 

@@ -20,9 +20,10 @@ public:
 	Camera cam;
 	bool bQuitRequested;
 
+	void IncrementPipeline();
 	int init();
 
-
+	
 	int run();
 	int draw();
 	void cleanup();
@@ -69,12 +70,15 @@ private:
 	std::unordered_map<std::string, VkShaderModule> shader_modules;
 
 	VkPipelineLayout trianglePipelineLayout;
-	VkPipeline trianglePipe;
+	std::vector<std::pair<std::string, VkPipeline>> vkPipelines;
+	uint32_t current_pipe_idx = 0;
 	void init_pipelines();
 
 	VmaAllocator allocator;
 
 	void upload_mesh(Mesh& mesh);
+	std::deque<Mesh> meshes;
+	void load_meshes();
 
 	struct DeletionQueue {
 		std::deque<std::function<void()>> deletors;
