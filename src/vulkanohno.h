@@ -6,8 +6,12 @@
 #include <unordered_set>
 #include <filesystem>
 #include <vk_mem_alloc.h>
+#include <memory>
 #include "Camera.h"
 #include "Mesh.h"
+#include "AssetManager.h"
+#include "RenderEngine.h"
+#include "RenderObject.h"
 
 
 struct VkOhNoWindow
@@ -63,6 +67,7 @@ private:
 
 	VkRenderingInfo default_ri;
 	VkRenderingAttachmentInfo default_colour_attach_info;
+	VkRenderingAttachmentInfo default_depth_attach_info;
 	VkClearValue val;
 	VkImageMemoryBarrier pre_draw_image_memory_barrier, post_draw_image_memory_barrier;
 	void init_dynamic_rendering();
@@ -71,19 +76,22 @@ private:
 	VkFence renderFence;
 	void init_sync();
 
-	bool load_shader_module(std::filesystem::path shader_path, VkShaderModule* outShaderModule);
-	void load_all_shader_modules();
-	std::unordered_map<std::string, VkShaderModule> shader_modules;
+	std::shared_ptr<AssetManager> am;
+	void init_asset_manager();
 
-	std::unordered_map<std::string, VkPipelineLayout> vkPipelineLayouts;;
+	std::unordered_map<std::string, VkPipelineLayout> vkPipelineLayouts;
 	std::vector<std::pair<std::string, VkPipeline>> vkPipelines;
+
+	std::vector<std::unique_ptr<RenderEngine>> renderEngines;
+	void init_engines();
+
 	uint32_t current_pipe_idx = 0;
 	void init_pipelines();
 
 	VmaAllocator allocator;
 
 	void upload_mesh(Mesh& mesh);
-	std::deque<Mesh> meshes;
+	std::unordered_map<std::string, Mesh> meshes;
 	void load_meshes();
 
 	struct MeshPushConstants{

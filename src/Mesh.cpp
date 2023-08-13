@@ -4,6 +4,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <tiny_gltf.h>
+#include <iostream>
 
 VertexInputDescription Vertex::get_vertex_description()
 {
@@ -39,4 +40,17 @@ VertexInputDescription Vertex::get_vertex_description()
 	vid.attributes.push_back(normalAttribute);
 	vid.attributes.push_back(colorAttribute);
 	return vid;
+}
+
+bool Mesh::load_from_gltf(std::filesystem::path gltf_path)
+{
+
+	
+
+	return false;
+}
+
+bool Mesh::load_from_obj(std::filesystem::path)
+{
+	return false;
 }

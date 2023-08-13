@@ -12,7 +12,12 @@ add_executable(vulkan-adventures
     src/vulkanohno.cpp
     src/vk_initializers.cpp
     src/PipelineBuilder.cpp 
-    src/Mesh.cpp)
+    src/Mesh.cpp 
+    src/RenderObject.cpp
+    src/AssetManager.cpp
+    src/RasterEngine.cpp
+    #src/RaytraceEngine.cpp
+)
 
 
 target_link_libraries(vulkan-adventures Vulkan::Vulkan)

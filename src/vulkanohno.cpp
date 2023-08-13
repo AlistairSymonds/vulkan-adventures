@@ -11,6 +11,7 @@
 #include "VkBootstrap.h"
 #include "vulkanohno.h"
 #include "PipelineBuilder.h"
+#include "RasterEngine.h"
 
 
 #define VMA_IMPLEMENTATION
@@ -74,6 +75,8 @@ int VulkanOhNo::init()
     init_commands();
     init_dynamic_rendering();
     init_sync();
+    init_asset_manager();
+    init_engines();
     init_pipelines();
     load_meshes();
     _isInitialized = true;
@@ -112,7 +115,7 @@ int VulkanOhNo::draw() {
     VK_CHECK(vkAcquireNextImageKHR(device, swapchain, 1000000000, presentSemaphore, nullptr, &swapchainImageIndex));
     default_colour_attach_info.imageView = _swapchainImageViews[swapchainImageIndex];
     default_colour_attach_info.clearValue.color.float32[2] = abs(sin(_frameNumber / 120.f));
-
+    
     //new frame stuff
     VkGraphicsPipelineCreateInfo pci;
     pci = {};
@@ -156,9 +159,9 @@ int VulkanOhNo::draw() {
     }
 
     VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &meshes[0].vertexBuffer.buf, &offset);
+    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &meshes["tri"].vertexBuffer.buf, &offset);
 
-    vkCmdDraw(cmdBuffer, meshes[0].vertices.size(), 1, 0, 0);
+    vkCmdDraw(cmdBuffer, meshes["tri"].vertices.size(), 1, 0, 0);
     vkCmdEndRendering(cmdBuffer);
 
 
@@ -226,6 +229,10 @@ void VulkanOhNo::cleanup() {
         //make sure the GPU has stopped doing its things
         vkWaitForFences(device, 1, &renderFence, true, 1000000000);
 
+        for (auto &r : renderEngines) {
+            r->cleanup();
+        }
+        am->cleanup();
         cleanup_queue.flush();
 
         vkDestroyDevice(device, nullptr);
@@ -448,72 +455,24 @@ void VulkanOhNo::init_sync() {
     });
 }
 
-bool VulkanOhNo::load_shader_module(std::filesystem::path shader_path, VkShaderModule* outShaderModule)
+void VulkanOhNo::init_asset_manager()
 {
-    //open the file. With cursor at the end
-    std::ifstream file(shader_path, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open()) {
-        return false;
-    }
-    //find what the size of the file is by looking up the location of the cursor
-    //because the cursor is at the end, it gives the size directly in bytes
-    size_t fileSize = (size_t)file.tellg();
-
-    //spirv expects the buffer to be on uint32, so make sure to reserve an int vector big enough for the entire file
-    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
-
-    //put file cursor at beginning
-    file.seekg(0);
-
-    //load the entire file into the buffer
-    file.read((char*)buffer.data(), fileSize);
-
-    //now that the file is loaded into the buffer, we can close it
-    file.close();
-
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.pNext = nullptr;
-    createInfo.codeSize = buffer.size() * sizeof(uint32_t);
-    createInfo.pCode = buffer.data();
-
-    VkShaderModule shaderModule;
-    if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-        return false;
-    }
-    *outShaderModule = shaderModule;
-
-
-    return true;
+    am = make_shared<AssetManager>(device);
+    am->loadAssets();
 }
 
-void VulkanOhNo::load_all_shader_modules() {
-    const std::filesystem::path shader_dir("shaders");
 
-    std::cout << "Loading .spv from:" << std::filesystem::absolute(shader_dir) << std::endl;
-    for (std::filesystem::path fp : std::filesystem::directory_iterator(shader_dir)) {
-        if (fp.extension() == ".spv") {
-
-            std::cout << fp << std::endl;
-            VkShaderModule mod;
-            load_shader_module(fp, &mod);
-            std::string shader_name;
-            shader_name = fp.filename().replace_extension().generic_string();
-            shader_modules[shader_name] = mod;
-        }
-    }
-    if (shader_modules.size() == 0)
-    {
-        assert("Didn't load any shaders");
-    }
+void VulkanOhNo::init_engines()
+{   
+    RasterEngine re(device, am);
+    unique_ptr<RasterEngine> re_ptr;
+    //re_ptr = std::make_unique<RasterEngine>(device, am);
+    //renderEngines.push_back(std::move(re_ptr));
 }
-
 
 void VulkanOhNo::init_pipelines()
 {
 
-    load_all_shader_modules();
     VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
     //use the layout then shove in the tripipe's layout
     VkPipelineLayout tri_pipe_layout;
@@ -521,11 +480,11 @@ void VulkanOhNo::init_pipelines()
 
     PipelineBuilder pb;
     pb._shaderStages.push_back(
-        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, shader_modules["basic.vert"])
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, am->getShaderModule("basic.vert"))
     );
 
     pb._shaderStages.push_back(
-        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, shader_modules["basic.frag"])
+        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, am->getShaderModule("basic.frag"))
     );
 
     pb._vertexInputInfo = vkinit::vertx_input_state_create_info();
@@ -579,8 +538,8 @@ void VulkanOhNo::init_pipelines()
     pb._vertexInputInfo.pVertexBindingDescriptions = vertexDesc.bindings.data();
     pb._vertexInputInfo.vertexBindingDescriptionCount = vertexDesc.bindings.size();
     pb._shaderStages.clear();
-    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, shader_modules["mvp_mesh.vert"]));
-    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, shader_modules["basic.frag"]));
+    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, am->getShaderModule("mvp_mesh.vert")));
+    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, am->getShaderModule("basic.frag")));
     
     auto mvpMeshPipe = pb.build_pipeline(device, pipeline_rendering_create_info);
     vkPipelines.push_back({ "Mesh", mvpMeshPipe });
@@ -601,9 +560,9 @@ void VulkanOhNo::init_pipelines()
 
     pb._shaderStages.clear();
 
-    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, shader_modules["fullscreen_tri.vert"]));
+    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, am->getShaderModule("fullscreen_tri.vert")));
 
-    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, shader_modules["skybox.frag"]));
+    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, am->getShaderModule("skybox.frag")));
     pb._pipelineLayout = skybox_pipe_layout;
     auto skybox_pipeline = pb.build_pipeline(device, pipeline_rendering_create_info);
     vkPipelines.push_back({ "skybox", skybox_pipeline });
@@ -623,11 +582,6 @@ void VulkanOhNo::init_pipelines()
         });
     }
     
-   
-
-    for (auto sm : shader_modules) {
-        vkDestroyShaderModule(device, sm.second, nullptr);
-    }
 }
 
 void VulkanOhNo::upload_mesh(Mesh& m) {
@@ -670,10 +624,14 @@ void VulkanOhNo::load_meshes()
     tri.vertices[1].color = { 0.f, 1.f, 0.0f }; //pure green
     tri.vertices[2].color = { 0.f, 1.f, 0.0f }; //pure green
 
-    meshes.push_back(tri);
+    meshes["tri"] = tri;
+
+    Mesh field;
+    field.load_from_gltf("C:/Users/alist/source/repos/vulkan-adventures/assets/models/Grass field.glb");
+    //meshes["field"] = field;
 
     for (auto &m : meshes)
     {
-        upload_mesh(m);
+        upload_mesh(m.second);
     }
 }

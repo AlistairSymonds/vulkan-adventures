@@ -3,6 +3,7 @@
 #include <vector>
 #include <glm/vec3.hpp>
 #include <glm/matrix.hpp>
+#include <filesystem>
 
 struct VertexInputDescription {
 	std::vector<VkVertexInputBindingDescription> bindings;
@@ -25,4 +26,9 @@ struct Mesh {
 	glm::mat4 mvpMatrix;
 	std::vector<Vertex> vertices;
 	AllocatedBuffer vertexBuffer;
+
+	//Plan A:
+	bool load_from_gltf(std::filesystem::path);
+	//In case of big stoopid:
+	bool load_from_obj(std::filesystem::path);
 };

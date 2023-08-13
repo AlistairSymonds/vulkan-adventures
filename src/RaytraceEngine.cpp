@@ -1,0 +1,7 @@
+RaytraceEngine::RaytraceEngine()
+{
+}
+
+RaytraceEngine::~RaytraceEngine()
+{
+}
