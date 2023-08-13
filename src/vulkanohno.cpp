@@ -100,6 +100,8 @@ int VulkanOhNo::draw() {
     MeshPushConstants constants;
     constants.render_matrix = mesh_matrix;
 
+    MeshPushConstants view_mat;
+    view_mat.render_matrix = view;
 
 
     //Previous frame waiting and finishing
@@ -143,10 +145,14 @@ int VulkanOhNo::draw() {
     );
 
     vkCmdBeginRendering(cmdBuffer, &default_ri);
+    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipelines[1].second);
+    vkCmdPushConstants(cmdBuffer, vkPipelineLayouts["skybox"], VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshPushConstants), &view_mat);
+    vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipelines[current_pipe_idx].second);
     if (vkPipelines[current_pipe_idx].first == "Mesh")
     {
-        vkCmdPushConstants(cmdBuffer, meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+        vkCmdPushConstants(cmdBuffer, vkPipelineLayouts["Mesh"], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
     }
 
     VkDeviceSize offset = 0;
@@ -510,7 +516,8 @@ void VulkanOhNo::init_pipelines()
     load_all_shader_modules();
     VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
     //use the layout then shove in the tripipe's layout
-    VK_CHECK(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &trianglePipelineLayout));
+    VkPipelineLayout tri_pipe_layout;
+    VK_CHECK(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &tri_pipe_layout));
 
     PipelineBuilder pb;
     pb._shaderStages.push_back(
@@ -539,7 +546,8 @@ void VulkanOhNo::init_pipelines()
     pb._multisampling = vkinit::multisampling_state_create_info();
     pb._colorBlendAttachment = vkinit::color_blend_attachment_state();
 
-    pb._pipelineLayout = trianglePipelineLayout;
+    pb._pipelineLayout = tri_pipe_layout;
+    vkPipelineLayouts["tri"] = tri_pipe_layout;
 
     VkPipelineRenderingCreateInfo pipeline_rendering_create_info{
     .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
@@ -558,8 +566,10 @@ void VulkanOhNo::init_pipelines()
     mesh_pipeline_layout_info.pPushConstantRanges = &push_constant;
     mesh_pipeline_layout_info.pushConstantRangeCount = 1;
     
-    VK_CHECK(vkCreatePipelineLayout(device, &mesh_pipeline_layout_info, nullptr, &meshPipelineLayout));
-    pb._pipelineLayout = meshPipelineLayout;
+    VkPipelineLayout mesh_pipe_layout;
+    VK_CHECK(vkCreatePipelineLayout(device, &mesh_pipeline_layout_info, nullptr, &mesh_pipe_layout));
+    pb._pipelineLayout = mesh_pipe_layout;
+    vkPipelineLayouts["Mesh"] = mesh_pipe_layout;
 
     auto vertexDesc = Vertex::get_vertex_description();
     pb._vertexInputInfo.pVertexAttributeDescriptions = vertexDesc.attributes.data();
@@ -575,6 +585,28 @@ void VulkanOhNo::init_pipelines()
     auto mvpMeshPipe = pb.build_pipeline(device, pipeline_rendering_create_info);
     vkPipelines.push_back({ "Mesh", mvpMeshPipe });
 
+    //skybox pipeline
+    VkPipelineLayoutCreateInfo skybox_pipeline_layout_info = vkinit::pipeline_layout_create_info();
+    push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    skybox_pipeline_layout_info.pPushConstantRanges = &push_constant;
+    skybox_pipeline_layout_info.pushConstantRangeCount = 1;
+    
+    VkPipelineLayout skybox_pipe_layout;
+    VK_CHECK(vkCreatePipelineLayout(device, &skybox_pipeline_layout_info, nullptr, &skybox_pipe_layout));
+    pb._pipelineLayout = skybox_pipe_layout;
+    vkPipelineLayouts["skybox"] = skybox_pipe_layout;
+
+    pb._vertexInputInfo.vertexAttributeDescriptionCount = 0;
+    pb._vertexInputInfo.vertexBindingDescriptionCount = 0;
+
+    pb._shaderStages.clear();
+
+    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, shader_modules["fullscreen_tri.vert"]));
+
+    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, shader_modules["skybox.frag"]));
+    pb._pipelineLayout = skybox_pipe_layout;
+    auto skybox_pipeline = pb.build_pipeline(device, pipeline_rendering_create_info);
+    vkPipelines.push_back({ "skybox", skybox_pipeline });
 
 
     vkPipelines.push_back({ "Static tri", trianglePipe });
@@ -585,10 +617,12 @@ void VulkanOhNo::init_pipelines()
         });
     }
 
-    cleanup_queue.push_function([=]() {
-        vkDestroyPipelineLayout(device, trianglePipelineLayout, nullptr);
-        vkDestroyPipelineLayout(device, meshPipelineLayout, nullptr);
-    });
+    for (auto pl : vkPipelineLayouts) {
+        cleanup_queue.push_function([=]() {
+            vkDestroyPipelineLayout(device, pl.second, nullptr);
+        });
+    }
+    
    
 
     for (auto sm : shader_modules) {

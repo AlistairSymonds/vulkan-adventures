@@ -75,8 +75,7 @@ private:
 	void load_all_shader_modules();
 	std::unordered_map<std::string, VkShaderModule> shader_modules;
 
-	VkPipelineLayout trianglePipelineLayout;
-	VkPipelineLayout meshPipelineLayout;
+	std::unordered_map<std::string, VkPipelineLayout> vkPipelineLayouts;;
 	std::vector<std::pair<std::string, VkPipeline>> vkPipelines;
 	uint32_t current_pipe_idx = 0;
 	void init_pipelines();

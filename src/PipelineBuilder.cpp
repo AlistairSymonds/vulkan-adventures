@@ -30,10 +30,25 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device, VkPipelineRenderingC
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipelineInfo.pNext = &pipe_rendering_info;
 
+	bool has_frag = false;
+	bool has_vert = false;
+	for (const auto &s : _shaderStages)
+	{
+		if (s.stage & VK_SHADER_STAGE_FRAGMENT_BIT)
+			has_frag = true;
+
+		if (s.stage & VK_SHADER_STAGE_VERTEX_BIT)
+			has_vert = true;
+	}
+
 	pipelineInfo.stageCount = _shaderStages.size();
 	pipelineInfo.pStages = _shaderStages.data();
-	pipelineInfo.pVertexInputState = &_vertexInputInfo;
-	pipelineInfo.pInputAssemblyState = &_inputAssembly;
+	if (has_vert)
+	{
+		pipelineInfo.pVertexInputState = &_vertexInputInfo;
+		pipelineInfo.pInputAssemblyState = &_inputAssembly;
+	}
+
 	pipelineInfo.pViewportState = &viewportState;
 	pipelineInfo.pRasterizationState = &_rasterizer;
 	pipelineInfo.pMultisampleState = &_multisampling;
