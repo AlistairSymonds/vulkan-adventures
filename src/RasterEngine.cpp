@@ -41,7 +41,7 @@ void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vecto
 
     vkCmdPipelineBarrier(
         cmdBuffer,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,  // srcStageMask
+        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,  // srcStageMask
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, // dstStageMask
         0,
         0,
@@ -53,7 +53,7 @@ void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vecto
     );
     vkCmdBeginRendering(cmdBuffer, &default_ri);
 
-    /*
+    
     Material skybox_mat = materials["skybox"];
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skybox_mat.pipe);
     vkCmdPushConstants(cmdBuffer, skybox_mat.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshPushConstants), &state.camView);
@@ -75,14 +75,14 @@ void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vecto
 
         vkCmdDraw(cmdBuffer, am->getMesh("tri").vertices.size(), 1, 0, 0);
     }
-        */
+        
     vkCmdEndRendering(cmdBuffer);
 
     
     vkCmdPipelineBarrier(
         cmdBuffer,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // srcStageMask
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
+        VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT, // dstStageMask
         0,
         0,
         nullptr,
