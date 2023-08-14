@@ -57,7 +57,7 @@ int main() {
                     break;
 
                 case SDLK_UP:
-                    vkohno.IncrementPipeline();
+                    vkohno.IncrementRenderEngine();
                     break;
                 default:
                     break;

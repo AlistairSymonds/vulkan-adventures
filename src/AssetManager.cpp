@@ -86,7 +86,7 @@ void AssetManager::load_all_shader_modules() {
 
 VkShaderModule AssetManager::getShaderModule(std::string id)
 {
-    if (!shader_modules.contains("id"))
+    if (!shader_modules.contains(id))
     {
         std::cout << "Couldn't find shader module: " << id << std::endl;
     }

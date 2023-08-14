@@ -20,7 +20,10 @@ struct Vertex
 	static VertexInputDescription get_vertex_description();
 };
 
-
+struct MeshPushConstants {
+	glm::vec4 data;
+	glm::mat4 render_matrix;
+};
 
 struct Mesh {
 	glm::mat4 mvpMatrix;

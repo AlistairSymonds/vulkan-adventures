@@ -1,4 +1,17 @@
 #include <vulkan/vulkan.h>
+#include <iostream>
+#include <vulkan/vk_enum_string_helper.h>
+
+#define VK_CHECK(x)                                                 \
+	do                                                              \
+	{                                                               \
+		VkResult err = x;                                           \
+		if (err)                                                    \
+		{                                                           \
+			std::cout << (__FILE__) << ":" << (__LINE__) << " Detected Vulkan error: " << string_VkResult(err) << std::endl; \
+			abort();                                                \
+		}                                                           \
+	} while (0)
 namespace vkinit {
 
 	VkCommandPoolCreateInfo command_pool_create_info(uint32_t queueFamilyIndex, VkCommandPoolCreateFlags flags = 0);
@@ -17,4 +30,7 @@ namespace vkinit {
 	VkPipelineColorBlendAttachmentState color_blend_attachment_state();
 
 	VkPipelineLayoutCreateInfo pipeline_layout_create_info();
+
+	VkImageCreateInfo image_create_info();
+	VkImageViewCreateInfo image_view_create_info(VkImageCreateInfo imginfo, VkImage img);
 }

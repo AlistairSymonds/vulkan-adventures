@@ -1,7 +1,6 @@
 #include <iostream>
 #include <fstream>
 #include <vulkan/vulkan.h>
-#include <vulkan/vk_enum_string_helper.h>
 
 #include <SDL.h>
 #include <SDL_vulkan.h>
@@ -13,22 +12,12 @@
 #include "PipelineBuilder.h"
 #include "RasterEngine.h"
 
-
 #define VMA_IMPLEMENTATION
 #include "vk_mem_alloc.h"
 
 //we want to immediately abort when there is an error. In normal engines this would give an error message to the user, or perform a dump of state.
 using namespace std;
-#define VK_CHECK(x)                                                 \
-	do                                                              \
-	{                                                               \
-		VkResult err = x;                                           \
-		if (err)                                                    \
-		{                                                           \
-			std::cout << (__FILE__) << ":" << (__LINE__) << " Detected Vulkan error: " << string_VkResult(err) << std::endl; \
-			abort();                                                \
-		}                                                           \
-	} while (0)
+
 
 VulkanOhNo::VulkanOhNo()
 {
@@ -40,17 +29,17 @@ VulkanOhNo::~VulkanOhNo()
 
 }
 
-void VulkanOhNo::IncrementPipeline()
+void VulkanOhNo::IncrementRenderEngine()
 {
-    if (current_pipe_idx >= vkPipelines.size()-1)
+    if (current_engine_idx >= renderEngines.size()-1)
     {
-        current_pipe_idx = 0;
+        current_engine_idx = 0;
     }
     else {
-        current_pipe_idx++;
+        current_engine_idx++;
     }
 
-    std::cout << "Select vkPipeline: " << vkPipelines[current_pipe_idx].first << std::endl;
+    std::cout << "Select engine: " << renderEngines[current_engine_idx]->getName() << std::endl;
 }
 
 int VulkanOhNo::init()
@@ -73,7 +62,7 @@ int VulkanOhNo::init()
     init_vk();
     init_swapchain();
     init_commands();
-    init_dynamic_rendering();
+    init_swapchain_barriers();
     init_sync();
     init_asset_manager();
     init_engines();
@@ -90,22 +79,11 @@ int VulkanOhNo::run() {
 }
 
 int VulkanOhNo::draw() {
-    //before we wait for the previous frame to finish, calculate everything we need to do locally on the CPU
-    glm::mat4 view = cam.GetViewMatrix();
-    //camera projection
-    glm::mat4 projection = cam.GetProjectionMatrix();
-    //model rotation
-    glm::mat4 model = glm::rotate(glm::mat4{ 1.0f }, glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0));
-
-    //calculate final mesh matrix
-    glm::mat4 mesh_matrix = projection * view * model;
-
-    MeshPushConstants constants;
-    constants.render_matrix = mesh_matrix;
-
-    MeshPushConstants view_mat;
-    view_mat.render_matrix = view;
-
+    
+    auto &engine = renderEngines[current_engine_idx];
+    RenderEngine::RenderState state;
+    state.camProj = cam.GetProjectionMatrix();
+    state.camView = cam.GetViewMatrix();
 
     //Previous frame waiting and finishing
     //wait until the GPU has finished rendering the last frame. Timeout of 1 second
@@ -113,14 +91,10 @@ int VulkanOhNo::draw() {
     VK_CHECK(vkResetFences(device, 1, &renderFence));
     uint32_t swapchainImageIndex;
     VK_CHECK(vkAcquireNextImageKHR(device, swapchain, 1000000000, presentSemaphore, nullptr, &swapchainImageIndex));
-    default_colour_attach_info.imageView = _swapchainImageViews[swapchainImageIndex];
-    default_colour_attach_info.clearValue.color.float32[2] = abs(sin(_frameNumber / 120.f));
+
     
     //new frame stuff
-    VkGraphicsPipelineCreateInfo pci;
-    pci = {};
-    pci.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    
+        
     VK_CHECK(vkResetCommandBuffer(cmdBuffer, 0));
 
     VkCommandBufferBeginInfo cmdBeginInfo = {};
@@ -147,23 +121,36 @@ int VulkanOhNo::draw() {
         &pre_draw_image_memory_barrier // pImageMemoryBarriers
     );
 
-    vkCmdBeginRendering(cmdBuffer, &default_ri);
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipelines[1].second);
-    vkCmdPushConstants(cmdBuffer, vkPipelineLayouts["skybox"], VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshPushConstants), &view_mat);
-    vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+    engine->Draw(cmdBuffer, state, renderObjs);  
 
-    vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkPipelines[current_pipe_idx].second);
-    if (vkPipelines[current_pipe_idx].first == "Mesh")
+    if (engine->getOutputFormat() != _swapchainImageFormat)
     {
-        vkCmdPushConstants(cmdBuffer, vkPipelineLayouts["Mesh"], VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+        VkImageBlit blitRegion = {};
+        blitRegion.srcOffsets[0] = { 0, 0, 0 };
+        blitRegion.srcOffsets[1] = { 1700, 900, 1 };
+        blitRegion.dstOffsets[0] = { 0, 0, 0 };
+        blitRegion.dstOffsets[1] = { 1700, 900, 1 };
+
+        VkImageSubresourceLayers sub_rsrc = {};
+        sub_rsrc.baseArrayLayer = 0;
+        sub_rsrc.layerCount = 1;
+        sub_rsrc.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        sub_rsrc.mipLevel = 0;
+        blitRegion.dstSubresource = sub_rsrc;
+        blitRegion.srcSubresource = sub_rsrc;
+
+        VkImageLayout renderEngineOutputLayout;
+        renderEngineOutputLayout;
+        vkCmdBlitImage(cmdBuffer,
+            engine->getOutputImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            _swapchainImages[swapchainImageIndex],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &blitRegion,
+            VK_FILTER_NEAREST
+        );
     }
-
-    VkDeviceSize offset = 0;
-    vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &meshes["tri"].vertexBuffer.buf, &offset);
-
-    vkCmdDraw(cmdBuffer, meshes["tri"].vertices.size(), 1, 0, 0);
-    vkCmdEndRendering(cmdBuffer);
-
 
     post_draw_image_memory_barrier.image = _swapchainImages[swapchainImageIndex];
     vkCmdPipelineBarrier(
@@ -178,7 +165,6 @@ int VulkanOhNo::draw() {
         1, // imageMemoryBarrierCount
         &post_draw_image_memory_barrier // pImageMemoryBarriers
     );
-
 
     VK_CHECK(vkEndCommandBuffer(cmdBuffer));
 
@@ -255,10 +241,17 @@ VkOhNoWindow VulkanOhNo::getWindw()
 
 int VulkanOhNo::init_vk()
 {
+    auto system_info = vkb::SystemInfo::get_system_info().value();
 
+    VkValidationFeatureEnableEXT en;
+    
     vkb::InstanceBuilder builder;
     auto inst_ret = builder.set_app_name("Vulkan Adventures")
         .require_api_version(1,3)
+        .enable_extension("VK_EXT_validation_features")
+        .add_validation_feature_enable(VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT)
+        //.enable_layer("VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT")
+        //.enable_layer("VALIDATION_CHECK_ENABLE_VENDOR_SPECIFIC_AMD")
         .request_validation_layers()
         .use_default_debug_messenger()
         .build();
@@ -338,6 +331,7 @@ int VulkanOhNo::init_swapchain()
         //use vsync present mode
         .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
         .set_desired_extent(_windowExtent.width, _windowExtent.height)
+        .set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
         .build()
         .value();
 
@@ -376,34 +370,14 @@ void VulkanOhNo::init_commands()
     });
 }
 
-void VulkanOhNo::init_dynamic_rendering()
+void VulkanOhNo::init_swapchain_barriers()
 {
-
-    default_colour_attach_info = {};
-    default_colour_attach_info.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-    default_colour_attach_info.imageLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR;
-    default_colour_attach_info.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    default_colour_attach_info.storeOp = VK_ATTACHMENT_STORE_OP_STORE; 
-    
-    val.color.float32[0] = 1.0;
-    val.color.float32[1] = 1.0;
-    val.color.float32[2] = 1.0;
-    val.color.float32[3] = 1.0;
-    val.depthStencil = {};
-    default_colour_attach_info.clearValue = val;
-
-    default_ri = {};
-    default_ri.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-    default_ri.colorAttachmentCount = 1;
-    default_ri.layerCount = 1;
-    default_ri.pColorAttachments =  &default_colour_attach_info;
-    default_ri.renderArea.extent = _windowExtent;
     
     pre_draw_image_memory_barrier = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
     .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
     .image = _swapchainImages[0],
     .subresourceRange = {
       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -417,7 +391,7 @@ void VulkanOhNo::init_dynamic_rendering()
     post_draw_image_memory_barrier = {
     .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
     .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-    .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+    .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
     .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
     .image = _swapchainImages[0],
     .subresourceRange = {
@@ -464,124 +438,24 @@ void VulkanOhNo::init_asset_manager()
 
 void VulkanOhNo::init_engines()
 {   
-    RasterEngine re(device, am);
+    
     unique_ptr<RasterEngine> re_ptr;
-    //re_ptr = std::make_unique<RasterEngine>(device, am);
-    //renderEngines.push_back(std::move(re_ptr));
+    re_ptr = std::make_unique<RasterEngine>(device, _windowExtent, am, allocator);
+    re_ptr->init();
+    renderEngines.push_back(std::move(re_ptr));
+
+    std::cout << "Initialised the following engines:" << std::endl;
+    for (auto &e : renderEngines)
+    {
+        std::cout << "  " << e->getName() << std::endl;
+    }
+    std::cout << "Current engine: " << renderEngines[current_engine_idx]->getName() << std::endl;
+
 }
 
 void VulkanOhNo::init_pipelines()
 {
 
-    VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-    //use the layout then shove in the tripipe's layout
-    VkPipelineLayout tri_pipe_layout;
-    VK_CHECK(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &tri_pipe_layout));
-
-    PipelineBuilder pb;
-    pb._shaderStages.push_back(
-        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, am->getShaderModule("basic.vert"))
-    );
-
-    pb._shaderStages.push_back(
-        vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, am->getShaderModule("basic.frag"))
-    );
-
-    pb._vertexInputInfo = vkinit::vertx_input_state_create_info();
-    pb._inputAssembly = vkinit::input_assembly_create_info(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-    pb._viewport.x = 0.0f;
-    pb._viewport.y = 0.0f;
-    pb._viewport.width = (float)_windowExtent.width;
-    pb._viewport.height = (float)_windowExtent.height;
-    pb._viewport.minDepth = 0.0f;
-    pb._viewport.maxDepth = 1.0f;
-
-    pb._scissor.offset = { 0, 0 };
-    pb._scissor.extent = _windowExtent;
-
-
-    pb._rasterizer = vkinit::raster_state_create_info();
-    pb._multisampling = vkinit::multisampling_state_create_info();
-    pb._colorBlendAttachment = vkinit::color_blend_attachment_state();
-
-    pb._pipelineLayout = tri_pipe_layout;
-    vkPipelineLayouts["tri"] = tri_pipe_layout;
-
-    VkPipelineRenderingCreateInfo pipeline_rendering_create_info{
-    .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
-    .colorAttachmentCount = 1,
-    .pColorAttachmentFormats = &_swapchainImageFormat,
-    };
-
-    auto trianglePipe = pb.build_pipeline(device, pipeline_rendering_create_info);
-
-    //Now build mesh pipeline
-    VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-    VkPushConstantRange push_constant;
-    push_constant.size = sizeof(MeshPushConstants);
-    push_constant.offset = 0;
-    push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    mesh_pipeline_layout_info.pPushConstantRanges = &push_constant;
-    mesh_pipeline_layout_info.pushConstantRangeCount = 1;
-    
-    VkPipelineLayout mesh_pipe_layout;
-    VK_CHECK(vkCreatePipelineLayout(device, &mesh_pipeline_layout_info, nullptr, &mesh_pipe_layout));
-    pb._pipelineLayout = mesh_pipe_layout;
-    vkPipelineLayouts["Mesh"] = mesh_pipe_layout;
-
-    auto vertexDesc = Vertex::get_vertex_description();
-    pb._vertexInputInfo.pVertexAttributeDescriptions = vertexDesc.attributes.data();
-    pb._vertexInputInfo.vertexAttributeDescriptionCount = vertexDesc.attributes.size();
-
-
-    pb._vertexInputInfo.pVertexBindingDescriptions = vertexDesc.bindings.data();
-    pb._vertexInputInfo.vertexBindingDescriptionCount = vertexDesc.bindings.size();
-    pb._shaderStages.clear();
-    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, am->getShaderModule("mvp_mesh.vert")));
-    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, am->getShaderModule("basic.frag")));
-    
-    auto mvpMeshPipe = pb.build_pipeline(device, pipeline_rendering_create_info);
-    vkPipelines.push_back({ "Mesh", mvpMeshPipe });
-
-    //skybox pipeline
-    VkPipelineLayoutCreateInfo skybox_pipeline_layout_info = vkinit::pipeline_layout_create_info();
-    push_constant.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    skybox_pipeline_layout_info.pPushConstantRanges = &push_constant;
-    skybox_pipeline_layout_info.pushConstantRangeCount = 1;
-    
-    VkPipelineLayout skybox_pipe_layout;
-    VK_CHECK(vkCreatePipelineLayout(device, &skybox_pipeline_layout_info, nullptr, &skybox_pipe_layout));
-    pb._pipelineLayout = skybox_pipe_layout;
-    vkPipelineLayouts["skybox"] = skybox_pipe_layout;
-
-    pb._vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    pb._vertexInputInfo.vertexBindingDescriptionCount = 0;
-
-    pb._shaderStages.clear();
-
-    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, am->getShaderModule("fullscreen_tri.vert")));
-
-    pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, am->getShaderModule("skybox.frag")));
-    pb._pipelineLayout = skybox_pipe_layout;
-    auto skybox_pipeline = pb.build_pipeline(device, pipeline_rendering_create_info);
-    vkPipelines.push_back({ "skybox", skybox_pipeline });
-
-
-    vkPipelines.push_back({ "Static tri", trianglePipe });
-    //After all pipelines have been created, do the cleanup
-    for (auto p : vkPipelines) {
-        cleanup_queue.push_function([=]() {
-            vkDestroyPipeline(device, p.second, nullptr);
-        });
-    }
-
-    for (auto pl : vkPipelineLayouts) {
-        cleanup_queue.push_function([=]() {
-            vkDestroyPipelineLayout(device, pl.second, nullptr);
-        });
-    }
-    
 }
 
 void VulkanOhNo::upload_mesh(Mesh& m) {
@@ -621,8 +495,8 @@ void VulkanOhNo::load_meshes()
 
     //vertex colors, all green
     tri.vertices[0].color = { 1.f, 1.f, 0.0f }; 
-    tri.vertices[1].color = { 0.f, 1.f, 0.0f }; //pure green
-    tri.vertices[2].color = { 0.f, 1.f, 0.0f }; //pure green
+    tri.vertices[1].color = { 0.f, 1.f, 0.0f };
+    tri.vertices[2].color = { 0.f, 1.f, 1.0f };
 
     meshes["tri"] = tri;
 

@@ -109,3 +109,27 @@ VkPipelineLayoutCreateInfo vkinit::pipeline_layout_create_info()
 	info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	return info;
 }
+
+VkImageCreateInfo vkinit::image_create_info() {
+	VkImageCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	info.samples = VK_SAMPLE_COUNT_1_BIT;
+	info.arrayLayers = 1;
+	info.mipLevels = 1;
+	info.imageType = VK_IMAGE_TYPE_2D;
+	return info;
+}
+
+VkImageViewCreateInfo vkinit::image_view_create_info(VkImageCreateInfo imginfo, VkImage img)
+{
+	VkImageViewCreateInfo view_info = {};
+	view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	view_info.format = imginfo.format;
+	view_info.subresourceRange.layerCount = imginfo.arrayLayers;
+	view_info.subresourceRange.baseMipLevel = 0;
+	view_info.subresourceRange.levelCount = imginfo.mipLevels;
+	view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	view_info.image = img;
+	return view_info;
+}

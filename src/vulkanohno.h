@@ -1,12 +1,11 @@
 #pragma once
 #include <vulkan/Vulkan.h>
 #include <vector>
-#include <deque>
-#include <functional>
 #include <unordered_set>
 #include <filesystem>
 #include <vk_mem_alloc.h>
 #include <memory>
+#include "DeletionQueue.h"
 #include "Camera.h"
 #include "Mesh.h"
 #include "AssetManager.h"
@@ -30,7 +29,7 @@ public:
 	Camera cam;
 	bool bQuitRequested;
 
-	void IncrementPipeline();
+	void IncrementRenderEngine();
 	int init();
 
 	
@@ -65,12 +64,9 @@ private:
 	VkCommandBuffer cmdBuffer;
 	void init_commands();
 
-	VkRenderingInfo default_ri;
-	VkRenderingAttachmentInfo default_colour_attach_info;
-	VkRenderingAttachmentInfo default_depth_attach_info;
-	VkClearValue val;
+
 	VkImageMemoryBarrier pre_draw_image_memory_barrier, post_draw_image_memory_barrier;
-	void init_dynamic_rendering();
+	void init_swapchain_barriers();
 
 	VkSemaphore presentSemaphore, renderSemaphore;
 	VkFence renderFence;
@@ -79,13 +75,10 @@ private:
 	std::shared_ptr<AssetManager> am;
 	void init_asset_manager();
 
-	std::unordered_map<std::string, VkPipelineLayout> vkPipelineLayouts;
-	std::vector<std::pair<std::string, VkPipeline>> vkPipelines;
-
+	uint32_t current_engine_idx = 0;
 	std::vector<std::unique_ptr<RenderEngine>> renderEngines;
 	void init_engines();
 
-	uint32_t current_pipe_idx = 0;
 	void init_pipelines();
 
 	VmaAllocator allocator;
@@ -94,25 +87,7 @@ private:
 	std::unordered_map<std::string, Mesh> meshes;
 	void load_meshes();
 
-	struct MeshPushConstants{
-		glm::vec4 data;
-		glm::mat4 render_matrix;
-	};
-
-	struct DeletionQueue {
-		std::deque<std::function<void()>> deletors;
-		void push_function(std::function<void()>&& function) {
-			deletors.push_back(function);
-		}
-
-		void flush() {
-			for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
-				(*it)(); //deference function, then call it
-			}
-
-			deletors.clear();
-		}
-	};
+	std::vector<RenderObject> renderObjs;
 
 	DeletionQueue cleanup_queue;
 };
