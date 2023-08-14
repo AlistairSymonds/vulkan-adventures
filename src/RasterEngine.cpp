@@ -36,8 +36,9 @@ void RasterEngine::init()
 }
 
 
-void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vector<RenderObject> objs)
+void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vector<RenderObject> renderObjs)
 {
+
 
     vkCmdPipelineBarrier(
         cmdBuffer,
@@ -53,14 +54,15 @@ void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vecto
     );
     vkCmdBeginRendering(cmdBuffer, &default_ri);
 
-    
+    MeshPushConstants skyboxconstants = {};
+    skyboxconstants.render_matrix = state.camView;
     Material skybox_mat = materials["skybox"];
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skybox_mat.pipe);
-    vkCmdPushConstants(cmdBuffer, skybox_mat.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshPushConstants), &state.camView);
+    vkCmdPushConstants(cmdBuffer, skybox_mat.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshPushConstants), &skyboxconstants);
     vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
 
     glm::mat4 viewProj = state.camProj * state.camView;
-    for (auto &o : objs)
+    for (auto &o : renderObjs)
     {
         Material m = materials[o.materialId];
         glm::mat4 mvp = viewProj * o.worldMatrix;

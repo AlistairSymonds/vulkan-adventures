@@ -19,6 +19,19 @@ int main() {
     std::chrono::microseconds loop_time = std::chrono::microseconds();
     glm::vec2 last_mouse_pos = {};
 
+    std::vector<RenderObject> ros;
+    for (size_t i = 0; i < 10; i++)
+    {
+        glm::mat4 transform(1);
+
+        
+        RenderObject tri;
+        tri.meshId = "tri";
+        tri.materialId = "Mesh";
+        tri.worldMatrix = glm::translate(transform, glm::vec3(-0.5 + i, -0.5 - i, (0.0f + i / 3)));
+        ros.push_back(tri);
+    }
+
     //main loop
     while (!bQuit)
     {
@@ -87,7 +100,7 @@ int main() {
         last_mouse_pos = cur_mouse_pos;
 
 
-        vkohno.draw();
+        vkohno.draw(ros);
         const std::chrono::time_point<std::chrono::steady_clock>  loop_end = std::chrono::steady_clock::now();
         loop_time = std::chrono::duration_cast<std::chrono::microseconds> (loop_end - loop_start);
     }

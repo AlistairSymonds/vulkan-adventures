@@ -66,25 +66,19 @@ int VulkanOhNo::init()
     init_sync();
     init_asset_manager();
     init_engines();
-    init_pipelines();
-    load_meshes();
     _isInitialized = true;
 
     return true;
 }
 
-int VulkanOhNo::run() {
-    draw();
-    return 0;
-}
-
-int VulkanOhNo::draw() {
+int VulkanOhNo::draw(std::vector<RenderObject> renderObjs) {
     
     auto &engine = renderEngines[current_engine_idx];
     RenderEngine::RenderState state;
     state.camProj = cam.GetProjectionMatrix();
     state.camView = cam.GetViewMatrix();
 
+    
     //Previous frame waiting and finishing
     //wait until the GPU has finished rendering the last frame. Timeout of 1 second
     VK_CHECK(vkWaitForFences(device, 1, &renderFence, true, 1000000000));
@@ -431,7 +425,7 @@ void VulkanOhNo::init_sync() {
 
 void VulkanOhNo::init_asset_manager()
 {
-    am = make_shared<AssetManager>(device);
+    am = make_shared<AssetManager>(device, allocator);
     am->loadAssets();
 }
 
@@ -451,61 +445,4 @@ void VulkanOhNo::init_engines()
     }
     std::cout << "Current engine: " << renderEngines[current_engine_idx]->getName() << std::endl;
 
-}
-
-void VulkanOhNo::init_pipelines()
-{
-
-}
-
-void VulkanOhNo::upload_mesh(Mesh& m) {
-    VkBufferCreateInfo ci = {};
-    ci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    ci.size = m.vertices.size() * sizeof(Vertex);
-    ci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-
-    VmaAllocationCreateInfo vmalloc_ci = {};
-    vmalloc_ci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-
-    VK_CHECK(vmaCreateBuffer(allocator, &ci, &vmalloc_ci, &m.vertexBuffer.buf,
-        &m.vertexBuffer.allocation,
-        nullptr));
-
-    cleanup_queue.push_function([=]() {
-        vmaDestroyBuffer(allocator, m.vertexBuffer.buf, m.vertexBuffer.allocation);
-        });
-
-    void* data;
-    vmaMapMemory(allocator, m.vertexBuffer.allocation, &data);
-
-    memcpy(data, m.vertices.data(), m.vertices.size() * sizeof(Vertex));
-
-    vmaUnmapMemory(allocator, m.vertexBuffer.allocation);
-}
-
-void VulkanOhNo::load_meshes()
-{
-    Mesh tri;
-    tri.vertices.resize(3);
-
-    //vertex positions
-    tri.vertices[0].position = { 1.f, 1.f, 1.0f };
-    tri.vertices[1].position = { -1.f, 1.f, 0.0f };
-    tri.vertices[2].position = { 0.f,-1.f, 0.0f };
-
-    //vertex colors, all green
-    tri.vertices[0].color = { 1.f, 1.f, 0.0f }; 
-    tri.vertices[1].color = { 0.f, 1.f, 0.0f };
-    tri.vertices[2].color = { 0.f, 1.f, 1.0f };
-
-    meshes["tri"] = tri;
-
-    Mesh field;
-    field.load_from_gltf("C:/Users/alist/source/repos/vulkan-adventures/assets/models/Grass field.glb");
-    //meshes["field"] = field;
-
-    for (auto &m : meshes)
-    {
-        upload_mesh(m.second);
-    }
 }

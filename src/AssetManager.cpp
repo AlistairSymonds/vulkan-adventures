@@ -1,10 +1,12 @@
 #include <fstream>
 #include <iostream>
 #include "AssetManager.h"
+#include "vk_initializers.h"
 
-AssetManager::AssetManager(VkDevice dev)
+AssetManager::AssetManager(VkDevice dev, VmaAllocator alloc)
 {
     device = dev;
+    allocator = alloc;
 }
 
 AssetManager::~AssetManager()
@@ -14,6 +16,7 @@ AssetManager::~AssetManager()
 void AssetManager::loadAssets()
 {
     load_all_shader_modules();
+    load_meshes();
 }
 
 void AssetManager::cleanup() {
@@ -84,6 +87,31 @@ void AssetManager::load_all_shader_modules() {
     }
 }
 
+void AssetManager::upload_mesh(Mesh& m) {
+    VkBufferCreateInfo ci = {};
+    ci.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    ci.size = m.vertices.size() * sizeof(Vertex);
+    ci.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+    VmaAllocationCreateInfo vmalloc_ci = {};
+    vmalloc_ci.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+    VK_CHECK(vmaCreateBuffer(allocator, &ci, &vmalloc_ci, &m.vertexBuffer.buf,
+        &m.vertexBuffer.allocation,
+        nullptr));
+
+    cleanup_queue.push_function([=]() {
+        vmaDestroyBuffer(allocator, m.vertexBuffer.buf, m.vertexBuffer.allocation);
+        });
+
+    void* data;
+    vmaMapMemory(allocator, m.vertexBuffer.allocation, &data);
+
+    memcpy(data, m.vertices.data(), m.vertices.size() * sizeof(Vertex));
+
+    vmaUnmapMemory(allocator, m.vertexBuffer.allocation);
+}
+
 VkShaderModule AssetManager::getShaderModule(std::string id)
 {
     if (!shader_modules.contains(id))
@@ -93,7 +121,38 @@ VkShaderModule AssetManager::getShaderModule(std::string id)
     return shader_modules[id];
 }
 
-Mesh AssetManager::getMesh(std::string)
+Mesh AssetManager::getMesh(std::string id)
 {
-	return Mesh();
+    if (!shader_modules.contains(id))
+    {
+        std::cout << "Couldn't find Mesh: " << id << std::endl;
+    }
+    return meshes[id];
+}
+
+void AssetManager::load_meshes()
+{
+    Mesh tri;
+    tri.vertices.resize(3);
+
+    //vertex positions
+    tri.vertices[0].position = { 1.f, 1.f, 1.0f };
+    tri.vertices[1].position = { -1.f, 1.f, 0.0f };
+    tri.vertices[2].position = { 0.f,-1.f, 0.0f };
+
+    //vertex colors, all green
+    tri.vertices[0].color = { 1.f, 1.f, 0.0f };
+    tri.vertices[1].color = { 0.f, 1.f, 0.0f };
+    tri.vertices[2].color = { 0.f, 1.f, 1.0f };
+
+    meshes["tri"] = tri;
+
+    Mesh field;
+    field.load_from_gltf("C:/Users/alist/source/repos/vulkan-adventures/assets/models/Grass field.glb");
+    //meshes["field"] = field;
+
+    for (auto& m : meshes)
+    {
+        upload_mesh(m.second);
+    }
 }

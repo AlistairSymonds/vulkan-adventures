@@ -32,9 +32,7 @@ public:
 	void IncrementRenderEngine();
 	int init();
 
-	
-	int run();
-	int draw();
+	int draw(std::vector<RenderObject> renderObjs);
 	void cleanup();
 
 	VkOhNoWindow getWindw();
@@ -79,15 +77,8 @@ private:
 	std::vector<std::unique_ptr<RenderEngine>> renderEngines;
 	void init_engines();
 
-	void init_pipelines();
 
 	VmaAllocator allocator;
-
-	void upload_mesh(Mesh& mesh);
-	std::unordered_map<std::string, Mesh> meshes;
-	void load_meshes();
-
-	std::vector<RenderObject> renderObjs;
 
 	DeletionQueue cleanup_queue;
 };
