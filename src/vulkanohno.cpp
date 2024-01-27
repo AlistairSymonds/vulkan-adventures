@@ -75,8 +75,14 @@ int VulkanOhNo::draw(std::vector<RenderObject> renderObjs) {
     
     auto &engine = renderEngines[current_engine_idx];
     RenderEngine::RenderState state;
-    state.camProj = cam.GetProjectionMatrix();
-    state.camView = cam.GetViewMatrix();
+    cam.update();
+
+    auto projection = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 10000.f, 0.1f);
+
+    projection[1][1] *= -1;
+    state.camProj = projection;
+    state.camView = cam.getViewMatrix();
+
 
     
     //Previous frame waiting and finishing
@@ -255,16 +261,30 @@ int VulkanOhNo::init_vk()
     }
     vkb::Instance vkb_inst = inst_ret.value();
     _instance = vkb_inst.instance;
-    
+    _debug_messenger = vkb_inst.debug_messenger;
 
     SDL_Vulkan_CreateSurface(_window, vkb_inst.instance, &_surface);
+
+    
+    uint32_t deviceCount = 0;
+    VkResult result = vkEnumeratePhysicalDevices(_instance, &deviceCount, NULL);
+    std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
+    result = vkEnumeratePhysicalDevices(_instance, &deviceCount, physicalDevices.data());
+
+    for (auto d : physicalDevices)
+    {   
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(d, &props);
+        cout << props.deviceName << std::endl;
+    }
+
 
     VkPhysicalDeviceVulkan13Features features_13;
     features_13 = {};
     features_13.dynamicRendering = true;
     
     vkb::PhysicalDeviceSelector selector{ vkb_inst };
-    auto phys_ret = selector.set_surface(_surface)
+    selector.set_surface(_surface)
         .prefer_gpu_device_type(vkb::PreferredDeviceType::integrated)
         .set_minimum_version(1, 3)
         .set_required_features_13(features_13)
@@ -277,11 +297,14 @@ int VulkanOhNo::init_vk()
         .add_required_extension("VK_KHR_ray_query")
         */
         .require_dedicated_transfer_queue()
-        .select();
+        .prefer_gpu_device_type(vkb::PreferredDeviceType::integrated);
+        
+    auto phys_ret = selector.select();
     if (!phys_ret) {
         std::cerr << "Failed to select Vulkan Physical Device. Error: " << phys_ret.error().message() << "\n";
         return false;
     }
+    
     _chosenGPU = phys_ret.value();
 
     vkb::DeviceBuilder device_builder(*phys_ret);
@@ -341,6 +364,7 @@ int VulkanOhNo::init_swapchain()
         cleanup_queue.push_function([=]() {
             vkDestroyImageView(device, _swapchainImageViews[i], nullptr);
         });
+
     }
 
     cleanup_queue.push_function([=]() {
@@ -425,7 +449,7 @@ void VulkanOhNo::init_sync() {
 
 void VulkanOhNo::init_asset_manager()
 {
-    am = make_shared<AssetManager>(device, allocator);
+    am = make_shared<AssetManager>(_instance, device, allocator);
     am->loadAssets();
 }
 
@@ -434,7 +458,7 @@ void VulkanOhNo::init_engines()
 {   
     
     unique_ptr<RasterEngine> re_ptr;
-    re_ptr = std::make_unique<RasterEngine>(device, _windowExtent, am, allocator);
+    re_ptr = std::make_unique<RasterEngine>(device, _instance, _windowExtent, am, allocator);
     re_ptr->init();
     renderEngines.push_back(std::move(re_ptr));
 

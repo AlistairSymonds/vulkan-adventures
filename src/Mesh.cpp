@@ -42,14 +42,6 @@ VertexInputDescription Vertex::get_vertex_description()
 	return vid;
 }
 
-bool Mesh::load_from_gltf(std::filesystem::path gltf_path)
-{
-
-	
-
-	return false;
-}
-
 bool Mesh::load_from_obj(std::filesystem::path)
 {
 	return false;

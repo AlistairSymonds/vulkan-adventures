@@ -1,26 +1,24 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <SDL_events.h>
 
+//blatantly stolen from:
+//https://vkguide.dev/docs/new_chapter_5/interactive_camera/
 
-class Camera
-{
+class Camera {
 public:
-	Camera();
+    glm::vec3 velocity;
+    glm::vec3 position;
+    // vertical rotation
+    float pitch{ 0.f };
+    // horizontal rotation
+    float yaw{ 0.f };
 
-	glm::mat4 GetViewMatrix();
-	glm::mat4 GetProjectionMatrix();
+    glm::mat4 getViewMatrix();
+    glm::mat4 getRotationMatrix();
 
+    void processSDLEvent(SDL_Event& e);
 
-    void MoveTranslate(const glm::vec3);
-    void Rotate(float pitch, float yaw);
-
-
-    glm::vec3 pos;
-    glm::vec3 rot;
-    float Fov;               // Field of view (in degrees)
-    float AspectRatio;      // Aspect ratio of the viewport
-    float NearPlane;        // Near clipping plane
-    float FarPlane;         // Far clipping plane
-private:
+    void update();
 };

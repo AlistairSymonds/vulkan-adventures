@@ -6,9 +6,10 @@
 #include "PipelineBuilder.h"
 #include "vk_initializers.h"
 
-RasterEngine::RasterEngine(VkDevice dev, VkExtent2D windowExt, std::shared_ptr<AssetManager> manager, VmaAllocator vmalloc) {
+RasterEngine::RasterEngine(VkDevice dev, VkInstance inst, VkExtent2D windowExt, std::shared_ptr<AssetManager> manager, VmaAllocator vmalloc) {
 	am = manager;
 	device = dev;
+    instance = inst;
     windowExtent = windowExt;
     allocator = vmalloc;
 }
@@ -28,6 +29,7 @@ void RasterEngine::cleanup() {
 
 void RasterEngine::init()
 {
+    pfnSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(instance, "vkSetDebugUtilsObjectNameEXT");
     init_output();
     init_draw_barriers();
     init_dynamic_rendering();
@@ -169,7 +171,6 @@ void RasterEngine::init_pipelines()
     pb._colorBlendAttachment = vkinit::color_blend_attachment_state();
 
     pb._pipelineLayout = tri_pipe_layout;
-    layouts.push_back(tri_pipe_layout);
 
     VkPipelineRenderingCreateInfo pipeline_rendering_create_info{
     .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
@@ -178,6 +179,7 @@ void RasterEngine::init_pipelines()
     };
 
     auto trianglePipe = pb.build_pipeline(device, pipeline_rendering_create_info);
+    pipes.push_back(trianglePipe);
 
     //Now build mesh pipeline
     VkPipelineLayoutCreateInfo mesh_pipeline_layout_info = vkinit::pipeline_layout_create_info();
@@ -236,7 +238,6 @@ void RasterEngine::init_pipelines()
     Material meshMat = { .layout = mesh_pipe_layout, .pipe = mvpMeshPipe };
     materials["Mesh"] = meshMat;
 
-    pipes.push_back(trianglePipe);
     //After all pipelines have been created, do the cleanup
     for (auto p : pipes) {
         cleanup_queue.push_function([=]() {
@@ -268,17 +269,31 @@ void RasterEngine::init_output()
     image_info.extent.width = windowExtent.width;
     image_info.format = outputFormat;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VK_CHECK(vkCreateImage(device, &image_info, nullptr, &outputImage));
 
     VmaAllocationCreateInfo malloc_info = {};
     malloc_info.memoryTypeBits = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    vmaCreateImage(allocator, &image_info, &malloc_info, &outputImage, &outputImageAllocation, nullptr);
+    VK_CHECK(vmaCreateImage(allocator, &image_info, &malloc_info, &outputImage, &outputImageAllocation, nullptr));
     cleanup_queue.push_function([=] {
         vmaDestroyImage(allocator, outputImage, outputImageAllocation);
         });
 
     auto image_view_info = vkinit::image_view_create_info(image_info, outputImage);
     VK_CHECK(vkCreateImageView(device, &image_view_info, nullptr, &outputImageView));
+    cleanup_queue.push_function([=] {
+        vkDestroyImageView(device, outputImageView, nullptr);
+        });
+
+
+    const VkDebugUtilsObjectNameInfoEXT imageNameInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .pNext = NULL,
+        .objectType = VK_OBJECT_TYPE_IMAGE,
+        .objectHandle = (uint64_t)outputImage,
+        .pObjectName = "Raster Output Image",
+    };
+    pfnSetDebugUtilsObjectNameEXT(device, &imageNameInfo);
+
 }
 
 void RasterEngine::init_draw_barriers()

@@ -13,13 +13,19 @@ int main() {
 
     vkohno.init();
 
-    vkohno.cam.pos.z = -3;
+    
+    vkohno.cam.velocity = glm::vec3(0.f);
+    vkohno.cam.position = glm::vec3(0, 0, -5);
+
+    vkohno.cam.pitch = 0;
+    vkohno.cam.yaw = 0;
+
     SDL_Event e;
     bool bQuit = false;
     std::chrono::microseconds loop_time = std::chrono::microseconds();
     glm::vec2 last_mouse_pos = {};
 
-    std::vector<RenderObject> ros;
+    std::vector<RenderObject> tri_ros;
     for (size_t i = 0; i < 10; i++)
     {
         glm::mat4 transform(1);
@@ -29,8 +35,13 @@ int main() {
         tri.meshId = "tri";
         tri.materialId = "Mesh";
         tri.worldMatrix = glm::translate(transform, glm::vec3(-0.5 + i, -0.5 - i, (0.0f + i / 3)));
-        ros.push_back(tri);
+        tri_ros.push_back(tri);
     }
+
+    RenderObject grass_field;
+    grass_field.meshId = "field";
+    grass_field.materialId = "Mesh";
+    grass_field.worldMatrix = glm::translate(glm::mat4(1), glm::vec3(0, 0, -3));
 
     //main loop
     while (!bQuit)
@@ -42,65 +53,15 @@ int main() {
         {
             //close the window when user clicks the X button or alt-f4s
             if (e.type == SDL_QUIT) bQuit = true;
-            
-            float move_speed = 0.1f;
-            
 
-            if (e.type == SDL_KEYDOWN) {
-                switch (e.key.keysym.sym) {
-
-                
-                case SDLK_w:
-                    vkohno.cam.pos.z += 1 * move_speed;
-                    break;
-                case SDLK_a:
-                    vkohno.cam.pos.x += 1 * move_speed;
-                    break;
-                case SDLK_s:
-                    vkohno.cam.pos.z += -1 * move_speed;
-                    break;
-                case SDLK_d:
-                    vkohno.cam.pos.x += -1 * move_speed;
-                    break;
-                case SDLK_SPACE:
-                    vkohno.cam.pos.y += 1 * move_speed;
-                    break;
-                case SDLK_LCTRL:
-                    vkohno.cam.pos.y += -1 * move_speed;
-                    break;
-
-                case SDLK_UP:
-                    vkohno.IncrementRenderEngine();
-                    break;
-                default:
-                    break;
-                }
-
-                std::cout << "Cam pos: " << glm::to_string(vkohno.cam.pos) << std::endl;
-            }
-            
-            
+            vkohno.cam.processSDLEvent(e);
+            std::cout << "Cam pos: " << glm::to_string(vkohno.cam.position) << std::endl; 
         }
 
-       
-        float mouse_sens = 0.001f;
-        int mx, my;
-        auto mbstate = SDL_GetRelativeMouseState(&mx, &my);
 
-        glm::vec2 cur_mouse_pos;
-        cur_mouse_pos.x = mx;
-        cur_mouse_pos.y = my;
-        if (mbstate & SDL_BUTTON_LMASK) {
-
-
-            glm::vec2 del = last_mouse_pos - cur_mouse_pos;
-
-            vkohno.cam.Rotate(mx * -mouse_sens, my * -mouse_sens);
-        }
-        last_mouse_pos = cur_mouse_pos;
-
-
-        vkohno.draw(ros);
+        std::vector<RenderObject> objs;
+        objs.insert(objs.begin(), tri_ros.begin(), tri_ros.end());
+        vkohno.draw(objs);
         const std::chrono::time_point<std::chrono::steady_clock>  loop_end = std::chrono::steady_clock::now();
         loop_time = std::chrono::duration_cast<std::chrono::microseconds> (loop_end - loop_start);
     }

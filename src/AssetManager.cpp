@@ -2,11 +2,15 @@
 #include <iostream>
 #include "AssetManager.h"
 #include "vk_initializers.h"
+#include <tiny_gltf.h>
 
-AssetManager::AssetManager(VkDevice dev, VmaAllocator alloc)
-{
+AssetManager::AssetManager(VkInstance inst, VkDevice dev, VmaAllocator alloc)
+{   
+    instance = inst;
     device = dev;
     allocator = alloc;
+    pfnSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(instance, "vkSetDebugUtilsObjectNameEXT");
+
 }
 
 AssetManager::~AssetManager()
@@ -17,12 +21,14 @@ void AssetManager::loadAssets()
 {
     load_all_shader_modules();
     load_meshes();
+    load_render_objects();
 }
 
 void AssetManager::cleanup() {
     for (auto sm : shader_modules) {
         vkDestroyShaderModule(device, sm.second, nullptr);
     }
+    cleanup_queue.flush();
 }
 
 
@@ -100,6 +106,16 @@ void AssetManager::upload_mesh(Mesh& m) {
         &m.vertexBuffer.allocation,
         nullptr));
 
+    const VkDebugUtilsObjectNameInfoEXT bufferNameInfo =
+    {
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .pNext = NULL,
+        .objectType = VK_OBJECT_TYPE_BUFFER,
+        .objectHandle = (uint64_t)m.vertexBuffer.buf,
+        .pObjectName = "Mesh Buffer",
+    };
+    pfnSetDebugUtilsObjectNameEXT(device, &bufferNameInfo);
+
     cleanup_queue.push_function([=]() {
         vmaDestroyBuffer(allocator, m.vertexBuffer.buf, m.vertexBuffer.allocation);
         });
@@ -110,6 +126,38 @@ void AssetManager::upload_mesh(Mesh& m) {
     memcpy(data, m.vertices.data(), m.vertices.size() * sizeof(Vertex));
 
     vmaUnmapMemory(allocator, m.vertexBuffer.allocation);
+}
+
+void AssetManager::load_render_objects()
+{
+    std::vector<std::filesystem::path> glbs;
+    glbs.push_back("C:/Users/alist/source/repos/vulkan-adventures/assets/models/Grass field.glb");
+    for (auto g : glbs)
+    {
+        tinygltf::Model model;
+        tinygltf::TinyGLTF loader;
+        std::string err;
+        std::string warn;
+
+        bool ret = loader.LoadBinaryFromFile(&model, &err, &warn, g.string());
+
+        if (!warn.empty()) {
+            printf("Warn: %s\n", warn.c_str());
+        }
+
+        if (!err.empty()) {
+            printf("Err: %s\n", err.c_str());
+        }
+
+        if (!ret) {
+            printf("Failed to parse glTF\n");
+        }
+        RenderObject o;
+        for (auto gm : model.meshes) {
+            //gm.primitives[0].
+        }
+
+    }
 }
 
 VkShaderModule AssetManager::getShaderModule(std::string id)
@@ -123,7 +171,7 @@ VkShaderModule AssetManager::getShaderModule(std::string id)
 
 Mesh AssetManager::getMesh(std::string id)
 {
-    if (!shader_modules.contains(id))
+    if (!meshes.contains(id))
     {
         std::cout << "Couldn't find Mesh: " << id << std::endl;
     }
@@ -147,9 +195,6 @@ void AssetManager::load_meshes()
 
     meshes["tri"] = tri;
 
-    Mesh field;
-    field.load_from_gltf("C:/Users/alist/source/repos/vulkan-adventures/assets/models/Grass field.glb");
-    //meshes["field"] = field;
 
     for (auto& m : meshes)
     {

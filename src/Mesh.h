@@ -30,8 +30,6 @@ struct Mesh {
 	std::vector<Vertex> vertices;
 	AllocatedBuffer vertexBuffer;
 
-	//Plan A:
-	bool load_from_gltf(std::filesystem::path);
 	//In case of big stoopid:
 	bool load_from_obj(std::filesystem::path);
 };

@@ -8,7 +8,7 @@
 class RasterEngine : public RenderEngine
 {
 public:
-	RasterEngine(VkDevice dev, VkExtent2D windowExt, std::shared_ptr<AssetManager> manager, VmaAllocator vmalloc);
+	RasterEngine(VkDevice dev, VkInstance inst, VkExtent2D windowExt, std::shared_ptr<AssetManager> manager, VmaAllocator vmalloc);
 	std::string getName();
 	~RasterEngine();
 	void init();
@@ -23,6 +23,7 @@ private:
 	std::shared_ptr<AssetManager> am;
 	VmaAllocator allocator; //already an opaque pointer
 	VkDevice device;
+	VkInstance instance;
 	VkExtent2D windowExtent;
 	DeletionQueue cleanup_queue;
 
@@ -51,4 +52,5 @@ private:
 	};
 
 	std::unordered_map <std::string, Material> materials;
+	PFN_vkSetDebugUtilsObjectNameEXT pfnSetDebugUtilsObjectNameEXT;
 };
