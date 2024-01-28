@@ -38,6 +38,14 @@ int main() {
         tri_ros.push_back(tri);
     }
 
+    tri_ros.clear();
+    RenderObject tri;
+    tri.meshId = "tri";
+    tri.materialId = "Mesh";
+    glm::mat4 transform(1);
+    tri.worldMatrix = glm::translate(transform, glm::vec3(0, 0, -10));
+    tri_ros.push_back(tri);
+
     RenderObject grass_field;
     grass_field.meshId = "field";
     grass_field.materialId = "Mesh";

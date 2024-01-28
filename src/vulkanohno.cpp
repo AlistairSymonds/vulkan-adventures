@@ -77,7 +77,7 @@ int VulkanOhNo::draw(std::vector<RenderObject> renderObjs) {
     RenderEngine::RenderState state;
     cam.update();
 
-    auto projection = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 10000.f, 0.1f);
+    auto projection = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 0.1f, 100000.0f);
 
     projection[1][1] *= -1;
     state.camProj = projection;
