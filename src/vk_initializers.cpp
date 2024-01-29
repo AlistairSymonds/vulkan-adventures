@@ -133,3 +133,34 @@ VkImageViewCreateInfo vkinit::image_view_create_info(VkImageCreateInfo imginfo, 
 	view_info.image = img;
 	return view_info;
 }
+
+VkCommandBufferSubmitInfo vkinit::command_buffer_submit_info(VkCommandBuffer cmd)
+{
+	VkCommandBufferSubmitInfo info{};
+	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+	info.pNext = nullptr;
+	info.commandBuffer = cmd;
+	info.deviceMask = 0;
+
+	return info;
+}
+
+
+VkSubmitInfo2 vkinit::submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo,
+	VkSemaphoreSubmitInfo* waitSemaphoreInfo)
+{
+	VkSubmitInfo2 info = {};
+	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+	info.pNext = nullptr;
+
+	info.waitSemaphoreInfoCount = waitSemaphoreInfo == nullptr ? 0 : 1;
+	info.pWaitSemaphoreInfos = waitSemaphoreInfo;
+
+	info.signalSemaphoreInfoCount = signalSemaphoreInfo == nullptr ? 0 : 1;
+	info.pSignalSemaphoreInfos = signalSemaphoreInfo;
+
+	info.commandBufferInfoCount = 1;
+	info.pCommandBufferInfos = cmd;
+
+	return info;
+}

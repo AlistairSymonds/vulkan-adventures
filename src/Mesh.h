@@ -14,9 +14,10 @@ struct VertexInputDescription {
 struct Vertex
 {
 	glm::vec3 position;
+	float uv_x;
 	glm::vec3 normal;
-	glm::vec3 color; //lamenting for colour
-
+	float uv_y;
+	glm::vec4 color;
 	static VertexInputDescription get_vertex_description();
 };
 

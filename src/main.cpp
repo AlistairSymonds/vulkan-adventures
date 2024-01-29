@@ -5,7 +5,9 @@
 #include <chrono>
 #include "Camera.h"
 #include "vulkanohno.h"
-
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_vulkan.h"
 
 int main() {
 
@@ -15,7 +17,7 @@ int main() {
 
     
     vkohno.cam.velocity = glm::vec3(0.f);
-    vkohno.cam.position = glm::vec3(0, 0, -5);
+    vkohno.cam.position = glm::vec3(0, 0, 10);
 
     vkohno.cam.pitch = 0;
     vkohno.cam.yaw = 0;
@@ -34,17 +36,9 @@ int main() {
         RenderObject tri;
         tri.meshId = "tri";
         tri.materialId = "Mesh";
-        tri.worldMatrix = glm::translate(transform, glm::vec3(-0.5 + i, -0.5 - i, (0.0f + i / 3)));
+        tri.worldMatrix = glm::translate(transform, glm::vec3(-0.5 + i, -0.5 - i, (0.0f + i / 3)*-1));
         tri_ros.push_back(tri);
     }
-
-    tri_ros.clear();
-    RenderObject tri;
-    tri.meshId = "tri";
-    tri.materialId = "Mesh";
-    glm::mat4 transform(1);
-    tri.worldMatrix = glm::translate(transform, glm::vec3(0, 0, -10));
-    tri_ros.push_back(tri);
 
     RenderObject grass_field;
     grass_field.meshId = "field";
@@ -64,6 +58,7 @@ int main() {
 
             vkohno.cam.processSDLEvent(e);
             std::cout << "Cam pos: " << glm::to_string(vkohno.cam.position) << std::endl; 
+            ImGui_ImplSDL2_ProcessEvent(&e);
         }
 
 

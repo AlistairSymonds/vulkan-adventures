@@ -75,6 +75,35 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glm)
 target_compile_definitions(glm INTERFACE GLM_FORCE_SILENT_WARNINGS)
 
+FetchContent_Declare(
+    fetch_imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui/
+    GIT_TAG        v1.90.1
+    GIT_SHALLOW    TRUE
+    GIT_PROGRESS   TRUE
+)
+FetchContent_MakeAvailable(fetch_imgui)
+add_library(imgui)
+target_include_directories(imgui PUBLIC ${fetch_imgui_SOURCE_DIR})
+target_sources(imgui PRIVATE 
+  ${fetch_imgui_SOURCE_DIR}/imgui.h
+  ${fetch_imgui_SOURCE_DIR}/imgui.cpp
+
+  ${fetch_imgui_SOURCE_DIR}/imgui_demo.cpp
+  ${fetch_imgui_SOURCE_DIR}/imgui_draw.cpp
+  ${fetch_imgui_SOURCE_DIR}/imgui_widgets.cpp
+  ${fetch_imgui_SOURCE_DIR}/imgui_tables.cpp
+  ${fetch_imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+  ${fetch_imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
+  )
+
+target_link_libraries(imgui PUBLIC Vulkan::Vulkan SDL2::SDL2)
+include_directories(${fetch_imgui_SOURCE_DIR})
+include_directories(${fetch_imgui_SOURCE_DIR}/backends)
+
+target_link_libraries(vulkan-adventures imgui)
+
+
 if (WIN32)
     add_custom_command(
         TARGET vulkan-adventures POST_BUILD

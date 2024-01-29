@@ -36,6 +36,13 @@ public:
 	void cleanup();
 
 	VkOhNoWindow getWindw();
+
+	// immediate submit structures
+	VkFence _immFence;
+	VkCommandBuffer _immCommandBuffer;
+	VkCommandPool _immCommandPool;
+	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
+
 private:
 	bool _isInitialized{ false };
 	int _frameNumber{ 0 };
@@ -81,4 +88,7 @@ private:
 	VmaAllocator allocator;
 
 	DeletionQueue cleanup_queue;
+	void init_imgui();
+
+
 };

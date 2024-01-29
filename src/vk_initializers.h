@@ -33,4 +33,6 @@ namespace vkinit {
 
 	VkImageCreateInfo image_create_info();
 	VkImageViewCreateInfo image_view_create_info(VkImageCreateInfo imginfo, VkImage img);
+	VkCommandBufferSubmitInfo command_buffer_submit_info(VkCommandBuffer cmd);
+	VkSubmitInfo2 submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo, VkSemaphoreSubmitInfo* waitSemaphoreInfo);
 }
