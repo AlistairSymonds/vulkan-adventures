@@ -90,5 +90,7 @@ private:
 	DeletionQueue cleanup_queue;
 	void init_imgui();
 
+	void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
+
 
 };

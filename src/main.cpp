@@ -1,7 +1,6 @@
 #include <iostream>
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
-#include <glm/gtx/string_cast.hpp>
 #include <chrono>
 #include "Camera.h"
 #include "vulkanohno.h"
@@ -57,7 +56,6 @@ int main() {
             if (e.type == SDL_QUIT) bQuit = true;
 
             vkohno.cam.processSDLEvent(e);
-            std::cout << "Cam pos: " << glm::to_string(vkohno.cam.position) << std::endl; 
             ImGui_ImplSDL2_ProcessEvent(&e);
         }
 

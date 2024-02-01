@@ -35,4 +35,6 @@ namespace vkinit {
 	VkImageViewCreateInfo image_view_create_info(VkImageCreateInfo imginfo, VkImage img);
 	VkCommandBufferSubmitInfo command_buffer_submit_info(VkCommandBuffer cmd);
 	VkSubmitInfo2 submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo, VkSemaphoreSubmitInfo* waitSemaphoreInfo);
+	VkRenderingAttachmentInfo attachment_info(VkImageView view, VkClearValue* clear, VkImageLayout layout);
+	VkRenderingInfo rendering_info(VkExtent2D renderExtent, VkRenderingAttachmentInfo* colorAttachment, VkRenderingAttachmentInfo* depthAttachment);
 }

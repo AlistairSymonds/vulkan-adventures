@@ -20,6 +20,9 @@ AssetManager::~AssetManager()
 void AssetManager::loadAssets()
 {
     load_all_shader_modules();
+
+    initDefaultMesh();
+    initDefaultTexture();
     load_meshes();
     load_render_objects();
 }
@@ -200,4 +203,14 @@ void AssetManager::load_meshes()
     {
         upload_mesh(m.second);
     }
+}
+
+void AssetManager::initDefaultMesh() {
+    //It's a cube!
+    Mesh cube;
+
+}
+
+void AssetManager::initDefaultTexture() {
+
 }

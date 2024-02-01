@@ -5,6 +5,8 @@
 #include <SDL.h>
 #include <SDL_vulkan.h>
 
+#include <glm/gtx/string_cast.hpp>
+
 #include <vk_types.h>
 #include <vk_initializers.h>
 #include "VkBootstrap.h"
@@ -84,7 +86,15 @@ int VulkanOhNo::draw(std::vector<RenderObject> renderObjs) {
     ImGui::NewFrame();
 
     //some imgui UI to test
-    ImGui::ShowDemoWindow();
+    if (ImGui::Begin("Camera")) {
+        std::string posstr = glm::to_string(cam.position);
+        ImGui::Text("Position: %s", (posstr.c_str()));
+        
+
+        ImGui::End();
+    }
+    ImGui::Render();
+
 
     //make imgui calculate internal draw structures
     ImGui::Render();
@@ -139,6 +149,7 @@ int VulkanOhNo::draw(std::vector<RenderObject> renderObjs) {
 
     engine->Draw(cmdBuffer, state, renderObjs);  
 
+    //convert format via blit
     if (engine->getOutputFormat() != _swapchainImageFormat)
     {
         VkImageBlit blitRegion = {};
@@ -172,7 +183,7 @@ int VulkanOhNo::draw(std::vector<RenderObject> renderObjs) {
     vkCmdPipelineBarrier(
         cmdBuffer,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // srcStageMask
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, // dstStageMask
+        VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, // gigabarrier before drawing the imgui
         0,
         0,
         nullptr,
@@ -182,6 +193,7 @@ int VulkanOhNo::draw(std::vector<RenderObject> renderObjs) {
         &post_draw_image_memory_barrier // pImageMemoryBarriers
     );
 
+    draw_imgui(cmdBuffer, _swapchainImageViews[swapchainImageIndex]);
     VK_CHECK(vkEndCommandBuffer(cmdBuffer));
 
 
@@ -552,6 +564,7 @@ void VulkanOhNo::init_imgui()
 
     VkDescriptorPool imguiPool;
     VK_CHECK(vkCreateDescriptorPool(device, &pool_info, nullptr, &imguiPool));
+    
 
     // 2: initialize imgui library
 
@@ -576,16 +589,22 @@ void VulkanOhNo::init_imgui()
     init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
 
     ImGui_ImplVulkan_Init(&init_info, VK_NULL_HANDLE);
-
-    // execute a gpu command to upload imgui font textures
-    //immediate_submit([&](VkCommandBuffer cmd) { ImGui_ImplVulkan_CreateFontsTexture(cmd); });
-
-    // clear font textures from cpu data
     ImGui_ImplVulkan_CreateFontsTexture();
-
     // add the destroy the imgui created structures
     cleanup_queue.push_function([=]() {
-        vkDestroyDescriptorPool(device, imguiPool, nullptr);
+        //vkDestroyDescriptorPool(device, imguiPool, nullptr);
         ImGui_ImplVulkan_Shutdown();
         });
+}
+
+void VulkanOhNo::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView)
+{
+    VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_GENERAL);
+    VkRenderingInfo renderInfo = vkinit::rendering_info(_windowExtent, &colorAttachment, nullptr);
+
+    vkCmdBeginRendering(cmd, &renderInfo);
+
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+
+    vkCmdEndRendering(cmd);
 }

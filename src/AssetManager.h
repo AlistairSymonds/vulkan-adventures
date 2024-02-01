@@ -35,6 +35,8 @@ private:
 	std::unordered_map<std::string, RenderObject> knownRenderObjs;
 
 	void load_meshes();
+	void initDefaultMesh();
+	void initDefaultTexture();
 	DeletionQueue cleanup_queue;
 
 	VkInstance instance;
