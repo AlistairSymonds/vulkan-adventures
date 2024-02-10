@@ -1,6 +1,7 @@
 #version 460
 #extension GL_KHR_vulkan_glsl : enable
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_debug_printf : enable
 
 layout (location = 0) out vec3 outColor;
 layout (location = 1) out vec2 outUV;
@@ -25,8 +26,11 @@ layout( push_constant ) uniform constants
 } PushConstants;
 
 void main()
-{
+{	
 	Vertex v = PushConstants.vb.vertices[gl_VertexIndex];
+	
+	debugPrintfEXT("idx = %d", gl_VertexIndex);
+	debugPrintfEXT("in vtx pos  = %v3f", v.position);
 
 	gl_Position = PushConstants.render_matrix * vec4(v.position, 1.0f);
 	outColor = v.color.xyz;

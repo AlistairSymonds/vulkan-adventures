@@ -68,15 +68,18 @@ void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vecto
     {
         Material m = get_material(o.materialId);
         glm::mat4 mvp = viewProj * o.worldMatrix;
-        MeshPushConstants constants;
-        constants.render_matrix = mvp;
-        vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m.pipe);
-        vkCmdPushConstants(cmdBuffer, m.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
 
         VkDeviceSize offset = 0;
         Mesh mesh = am->getMesh(o.meshId);
         if (mesh.buffer.indexBuffer.buf == nullptr)
             std::cout << "null idx" << std::endl;
+
+        MeshPushConstants constants;
+        constants.render_matrix = mvp;
+        constants.vb = mesh.buffer.vertexBufferAddress;
+        vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m.pipe);
+        vkCmdPushConstants(cmdBuffer, m.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
+
         vkCmdBindIndexBuffer(cmdBuffer, mesh.buffer.indexBuffer.buf, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmdBuffer, am->getMesh(o.meshId).indices.size(), 1, 0, 0, 0);
     }

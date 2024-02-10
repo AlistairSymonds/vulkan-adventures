@@ -123,17 +123,24 @@ void AssetManager::load_all_shader_modules() {
 void AssetManager::upload_mesh(Mesh& m) {
     const size_t vtxBufSize = m.vertices.size() * sizeof(Vertex);
     const size_t idxBufSize = m.indices.size() * sizeof(uint32_t);
-       
+    
+    //*************
+    //Vertex Buffer:
+    //*************
     m.buffer.vertexBuffer = vkfuncs::create_buffer(allocator, vtxBufSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
+    VkBufferDeviceAddressInfo bufAddrInfo = { .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,.buffer = m.buffer.vertexBuffer.buf};
+    m.buffer.vertexBufferAddress = vkGetBufferDeviceAddress(device, &bufAddrInfo);
+    
+    std::string vtx_name = "Mesh vtx Buffer " + m.name;
     const VkDebugUtilsObjectNameInfoEXT vtxNameInfo =
     {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
         .pNext = NULL,
         .objectType = VK_OBJECT_TYPE_BUFFER,
         .objectHandle = (uint64_t)m.buffer.vertexBuffer.buf,
-        .pObjectName = "Mesh vtx Buffer",
+        .pObjectName = vtx_name.c_str(),
     };
     pfnSetDebugUtilsObjectNameEXT(device, &vtxNameInfo);
 
@@ -141,16 +148,21 @@ void AssetManager::upload_mesh(Mesh& m) {
         vmaDestroyBuffer(allocator, m.buffer.vertexBuffer.buf, m.buffer.vertexBuffer.allocation);
         });
 
+    //*************
+    //Index Buffer:
+    //*************
     m.buffer.indexBuffer = vkfuncs::create_buffer(allocator, vtxBufSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
+
+    std::string idx_name = "Mesh idx Buffer " + m.name;
     const VkDebugUtilsObjectNameInfoEXT idxNameInfo =
     {
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
         .pNext = NULL,
         .objectType = VK_OBJECT_TYPE_BUFFER,
         .objectHandle = (uint64_t)m.buffer.indexBuffer.buf,
-        .pObjectName = "Mesh idx Buffer",
+        .pObjectName = idx_name.c_str(),
     };
     pfnSetDebugUtilsObjectNameEXT(device, &idxNameInfo);
 
@@ -158,8 +170,11 @@ void AssetManager::upload_mesh(Mesh& m) {
         vmaDestroyBuffer(allocator, m.buffer.indexBuffer.buf, m.buffer.indexBuffer.allocation);
         });
 
-    add_to_staging_buffer(m.buffer.vertexBuffer, &m.vertices, m.vertices.size());
-    add_to_staging_buffer(m.buffer.indexBuffer, &m.indices, m.indices.size());
+    //*************
+    //Upload:
+    //*************
+    add_to_staging_buffer(m.buffer.vertexBuffer, m.vertices.data(), vtxBufSize);
+    add_to_staging_buffer(m.buffer.indexBuffer, m.indices.data(), idxBufSize);
 }
 
 void AssetManager::init_staging_buffer() {
@@ -179,6 +194,10 @@ void AssetManager::add_to_staging_buffer(AllocatedBuffer gpu_dst, void* src, siz
     void* staging_host_ptr;
     vmaMapMemory(allocator, staging.allocation, &staging_host_ptr);
     memcpy(staging_host_ptr, src, size);
+    
+    //uint32_t bleh[40];
+    //memcpy(bleh, src, size);
+
 
     VkFence _immFence;
     VkFenceCreateInfo fi;
@@ -272,6 +291,7 @@ Mesh AssetManager::getMesh(std::string id)
 void AssetManager::load_meshes()
 {
     Mesh tri;
+    tri.name = "tri";
     tri.vertices.resize(3);
 
     //vertex positions
@@ -307,6 +327,7 @@ VkResult AssetManager::flush_staging_buffer_to_gpu()
 void AssetManager::initDefaultMesh() {
     //It's a cube!
     Mesh cube;
+    cube.name = "default_cube";
     cube.vertices.resize(8);
     cube.vertices[0].position = { 0, 0, 0 };
     cube.vertices[1].position = { 0, 1, 0 };
