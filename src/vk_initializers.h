@@ -1,3 +1,4 @@
+#pragma once
 #include <vulkan/vulkan.h>
 #include <iostream>
 #include <vulkan/vk_enum_string_helper.h>

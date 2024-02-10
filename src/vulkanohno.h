@@ -42,7 +42,6 @@ public:
 	VkCommandBuffer _immCommandBuffer;
 	VkCommandPool _immCommandPool;
 	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
-
 private:
 	bool _isInitialized{ false };
 	int _frameNumber{ 0 };
@@ -92,5 +91,5 @@ private:
 
 	void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
 
-
+	
 };

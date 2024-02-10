@@ -52,5 +52,6 @@ private:
 	};
 
 	std::unordered_map <std::string, Material> materials;
+	Material get_material(std::string);
 	PFN_vkSetDebugUtilsObjectNameEXT pfnSetDebugUtilsObjectNameEXT;
 };

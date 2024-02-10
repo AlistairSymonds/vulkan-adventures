@@ -6,6 +6,7 @@
 #include <SDL_vulkan.h>
 
 #include <glm/gtx/string_cast.hpp>
+#include <vk_mem_alloc.h>
 
 #include <vk_types.h>
 #include <vk_initializers.h>
@@ -13,9 +14,6 @@
 #include "vulkanohno.h"
 #include "PipelineBuilder.h"
 #include "RasterEngine.h"
-
-#define VMA_IMPLEMENTATION
-#include "vk_mem_alloc.h"
 
 #include "imgui.h"
 #include "imgui_impl_sdl2.h"
@@ -310,12 +308,17 @@ int VulkanOhNo::init_vk()
     VkPhysicalDeviceVulkan13Features features_13;
     features_13 = {};
     features_13.dynamicRendering = true;
+    features_13.synchronization2 = true;
+    VkPhysicalDeviceVulkan12Features features_12;
+    features_12 = {};
+    features_12.bufferDeviceAddress = true;
     
     vkb::PhysicalDeviceSelector selector{ vkb_inst };
     selector.set_surface(_surface)
-        .prefer_gpu_device_type(vkb::PreferredDeviceType::integrated)
+        .prefer_gpu_device_type(vkb::PreferredDeviceType::discrete)
         .set_minimum_version(1, 3)
         .set_required_features_13(features_13)
+        .set_required_features_12(features_12)
         /*
         //Render doc nolikey :(
         .add_required_extension("VK_KHR_pipeline_library")
@@ -324,8 +327,7 @@ int VulkanOhNo::init_vk()
         .add_required_extension("VK_KHR_ray_tracing_pipeline")
         .add_required_extension("VK_KHR_ray_query")
         */
-        .require_dedicated_transfer_queue()
-        .prefer_gpu_device_type(vkb::PreferredDeviceType::integrated);
+        .require_dedicated_transfer_queue();
         
     auto phys_ret = selector.select();
     if (!phys_ret) {
@@ -360,8 +362,9 @@ int VulkanOhNo::init_vk()
     info.physicalDevice = _chosenGPU;
     info.device = device;
     info.instance = _instance;
+    info.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
     vmaCreateAllocator(&info, &allocator);
-
+    
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(_chosenGPU, &props);
     std::cout << "Vulkan initialised on: " << props.deviceName << std::endl;
@@ -488,7 +491,7 @@ void VulkanOhNo::init_sync() {
 
 void VulkanOhNo::init_asset_manager()
 {
-    am = make_shared<AssetManager>(_instance, device, allocator);
+    am = make_shared<AssetManager>(_instance, device, gfx_q, gfx_q_index, allocator);
     am->loadAssets();
 }
 

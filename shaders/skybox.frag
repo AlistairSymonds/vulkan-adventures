@@ -1,4 +1,5 @@
 #version 460
+#extension GL_ARB_gpu_shader_int64 : enable
 //layout(binding = 1) uniform sampler2D texSampler;
 
 layout (location = 0) out vec4 FragColor;
@@ -6,8 +7,8 @@ layout (location = 0) out vec4 FragColor;
 
 layout( push_constant ) uniform constants
 {
-	vec4 data;
 	mat4 view_matrix;
+	uint64_t padding;
 } PushConstants;
 
 void main()

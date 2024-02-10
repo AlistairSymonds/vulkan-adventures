@@ -22,14 +22,22 @@ struct Vertex
 };
 
 struct MeshPushConstants {
-	glm::vec4 data;
 	glm::mat4 render_matrix;
+	uint64_t vb;
 };
 
-struct Mesh {
-	glm::mat4 mvpMatrix;
-	std::vector<Vertex> vertices;
+struct GPUMeshBuffers {
+
+	AllocatedBuffer indexBuffer;
 	AllocatedBuffer vertexBuffer;
+	VkDeviceAddress vertexBufferAddress;
+};
+
+
+struct Mesh {
+	std::vector<Vertex> vertices;
+	std::vector<uint32_t> indices;
+	GPUMeshBuffers buffer;
 
 	//In case of big stoopid:
 	bool load_from_obj(std::filesystem::path);

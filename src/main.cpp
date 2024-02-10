@@ -2,6 +2,8 @@
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
 #include <chrono>
+#define VMA_IMPLEMENTATION
+#include <vk_mem_alloc.h>
 #include "Camera.h"
 #include "vulkanohno.h"
 #include "imgui.h"
@@ -44,6 +46,13 @@ int main() {
     grass_field.materialId = "Mesh";
     grass_field.worldMatrix = glm::translate(glm::mat4(1), glm::vec3(0, 0, -3));
 
+    //test the default cube
+    RenderObject dummy;
+    dummy.meshId = "hmmm I hope this doesn't exist";
+    dummy.materialId = "no mat!";
+    dummy.worldMatrix = glm::translate(glm::mat4(1), glm::vec3(0, 0, -3));
+
+
     //main loop
     while (!bQuit)
     {
@@ -62,6 +71,7 @@ int main() {
 
         std::vector<RenderObject> objs;
         objs.insert(objs.begin(), tri_ros.begin(), tri_ros.end());
+        objs.push_back(dummy);
         vkohno.draw(objs);
         const std::chrono::time_point<std::chrono::steady_clock>  loop_end = std::chrono::steady_clock::now();
         loop_time = std::chrono::duration_cast<std::chrono::microseconds> (loop_end - loop_start);

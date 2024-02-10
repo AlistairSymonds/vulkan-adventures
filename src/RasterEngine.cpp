@@ -58,7 +58,7 @@ void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vecto
 
     MeshPushConstants skyboxconstants = {};
     skyboxconstants.render_matrix = state.camView;
-    Material skybox_mat = materials["skybox"];
+    Material skybox_mat = get_material("skybox");
     vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skybox_mat.pipe);
     vkCmdPushConstants(cmdBuffer, skybox_mat.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MeshPushConstants), &skyboxconstants);
     vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
@@ -66,7 +66,7 @@ void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vecto
     glm::mat4 viewProj = state.camProj * state.camView;
     for (auto &o : renderObjs)
     {
-        Material m = materials[o.materialId];
+        Material m = get_material(o.materialId);
         glm::mat4 mvp = viewProj * o.worldMatrix;
         MeshPushConstants constants;
         constants.render_matrix = mvp;
@@ -74,10 +74,11 @@ void RasterEngine::Draw(VkCommandBuffer cmdBuffer, RenderState state, std::vecto
         vkCmdPushConstants(cmdBuffer, m.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(MeshPushConstants), &constants);
 
         VkDeviceSize offset = 0;
-        Mesh mesh = am->getMesh("tri");
-        vkCmdBindVertexBuffers(cmdBuffer, 0, 1, &(mesh.vertexBuffer.buf), &offset);
-
-        vkCmdDraw(cmdBuffer, am->getMesh("tri").vertices.size(), 1, 0, 0);
+        Mesh mesh = am->getMesh(o.meshId);
+        if (mesh.buffer.indexBuffer.buf == nullptr)
+            std::cout << "null idx" << std::endl;
+        vkCmdBindIndexBuffer(cmdBuffer, mesh.buffer.indexBuffer.buf, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmdBuffer, am->getMesh(o.meshId).indices.size(), 1, 0, 0, 0);
     }
         
     vkCmdEndRendering(cmdBuffer);
@@ -196,12 +197,12 @@ void RasterEngine::init_pipelines()
     layouts.push_back(mesh_pipe_layout);
 
     auto vertexDesc = Vertex::get_vertex_description();
-    pb._vertexInputInfo.pVertexAttributeDescriptions = vertexDesc.attributes.data();
-    pb._vertexInputInfo.vertexAttributeDescriptionCount = vertexDesc.attributes.size();
+    pb._vertexInputInfo.pVertexAttributeDescriptions = 0;
+    pb._vertexInputInfo.vertexAttributeDescriptionCount = 0;
 
 
-    pb._vertexInputInfo.pVertexBindingDescriptions = vertexDesc.bindings.data();
-    pb._vertexInputInfo.vertexBindingDescriptionCount = vertexDesc.bindings.size();
+    //pb._vertexInputInfo.pVertexBindingDescriptions = vertexDesc.bindings.data();
+    //pb._vertexInputInfo.vertexBindingDescriptionCount = vertexDesc.bindings.size();
     pb._shaderStages.clear();
     pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_VERTEX_BIT, am->getShaderModule("mvp_mesh.vert")));
     pb._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, am->getShaderModule("basic.frag")));
@@ -327,4 +328,15 @@ void RasterEngine::init_draw_barriers()
       .layerCount = 1
     }
     };
+}
+
+RasterEngine::Material RasterEngine::get_material(std::string mId)
+{
+    
+    if (!materials.contains(mId))
+    {
+        //std::cout << "Raster Engine does not have requested material: " << mId << std::endl;
+        return materials["Mesh"];
+    }
+    return materials[mId];
 }

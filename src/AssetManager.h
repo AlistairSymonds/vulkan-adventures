@@ -11,8 +11,10 @@
 class AssetManager
 {
 public:
-	AssetManager(VkInstance inst, VkDevice dev, VmaAllocator alloc);
+	AssetManager(VkInstance inst, VkDevice dev, VkQueue xfer_q, uint32_t xfer_q_idx, VmaAllocator alloc);
 	~AssetManager();
+
+	void init_vk();
 	
 	VkShaderModule getShaderModule(std::string id);
 	Mesh getMesh(std::string);
@@ -23,6 +25,9 @@ private:
 
 	VmaAllocator allocator; //already an opaque pointer
 	VkDevice device;
+	VkQueue transfer_q;
+	uint32_t transfer_q_index;
+	VkCommandPool cmdPool;
 
 	bool load_shader_module(std::filesystem::path shader_path, VkShaderModule* outShaderModule);
 	void load_all_shader_modules();
@@ -35,6 +40,11 @@ private:
 	std::unordered_map<std::string, RenderObject> knownRenderObjs;
 
 	void load_meshes();
+
+	AllocatedBuffer staging;
+	void init_staging_buffer();
+	void add_to_staging_buffer(AllocatedBuffer gpu_dst, void* src, size_t size);
+	VkResult flush_staging_buffer_to_gpu();
 	void initDefaultMesh();
 	void initDefaultTexture();
 	DeletionQueue cleanup_queue;

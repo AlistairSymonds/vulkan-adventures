@@ -17,7 +17,7 @@ add_executable(vulkan-adventures
     src/AssetManager.cpp
     src/RasterEngine.cpp
     #src/RaytraceEngine.cpp
-)
+    src/vk_funcs.cpp)
 
 
 target_link_libraries(vulkan-adventures Vulkan::Vulkan)
@@ -95,7 +95,7 @@ target_sources(imgui PRIVATE
   ${fetch_imgui_SOURCE_DIR}/imgui_tables.cpp
   ${fetch_imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
   ${fetch_imgui_SOURCE_DIR}/backends/imgui_impl_sdl2.cpp
-  )
+   )
 
 target_link_libraries(imgui PUBLIC Vulkan::Vulkan SDL2::SDL2)
 include_directories(${fetch_imgui_SOURCE_DIR})
