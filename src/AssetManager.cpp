@@ -338,19 +338,21 @@ void AssetManager::initDefaultMesh() {
     cube.vertices[6].position = { 1, 1, 0 };
     cube.vertices[7].position = { 1, 0, 1 };
     
-    cube.indices.resize(4);
+    cube.indices.resize(6);
     cube.indices[0] = 0;
     cube.indices[1] = 1;
     cube.indices[2] = 2;
-    cube.indices[3] = 3;
+    cube.indices[3] = 2; 
+    cube.indices[4] = 1; 
+    cube.indices[5] = 3; 
 
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<> dis(0.0, 1.0);
 
-    for (auto v : cube.vertices)
+    for (int i = 0; i < cube.vertices.size();i++)
     {
-        v.color = { dis(gen), dis(gen), dis(gen), 1.0f };
+        cube.vertices[i].color = { dis(gen), dis(gen), dis(gen), 1.0f };
     }
 
     meshes["default_cube"] = cube;
